@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "zYIHP2KJSBo=",
+  "success": true,
+  "projectFilePath": "D:\\GRIMOIRE\\desktop\\Grimoire.Desktop.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Damia\\.nuget\\packages\\microsoft.web.webview2\\1.0.3240.44\\microsoft.web.webview2.1.0.3240.44.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,0 +1,278 @@
+GRIMOIRE USER GUIDE
+===================
+
+Muc dich
+--------
+GRIMOIRE la bo cong cu lam viec voi product data va product images, gom cac module:
+
+- Dashboard
+- Data QC
+- Image Edit
+- EAN Sorter
+- EAN Renamer
+- Settings
+
+
+1. Mo ung dung
+--------------
+Chay file:
+START_DESKTOP.bat
+
+Neu muon chay che do browser/dev:
+START_GRIMOIRE.bat
+
+
+2. Dashboard
+------------
+Dashboard la man hinh tong quan. Tu day co the mo nhanh cac tool:
+
+- Data Quality Control
+- Image Edit
+- EAN Sorter
+- EAN Renamer
+
+
+3. Data QC
+----------
+Muc dich:
+- Kiem tra file master data.
+- Phat hien loi thieu data, sai format, duplicate, hoac rule validation.
+- Tao report de review.
+
+Quy trinh co ban:
+1. Mo tab Data QC.
+2. Upload/chon file master data.
+3. Chay audit.
+4. Xem ket qua loi.
+5. Export report neu can.
+
+Luu y:
+- File input nen la Excel/CSV dung format ma team dang dung.
+- Neu report bi loi doc file, kiem tra sheet name/header/format cell.
+
+
+4. Image Edit
+-------------
+Muc dich:
+- Xu ly anh hang loat.
+- Remove background, upscale, canvas edit, export anh.
+
+Quy trinh co ban:
+1. Mo tab Image Edit.
+2. Chon/upload anh.
+3. Chon workflow can xu ly.
+4. Preview ket qua.
+5. Export file output.
+
+Luu y:
+- Anh lon se ton nhieu RAM va thoi gian xu ly.
+- Mot so tinh nang AI can model/dependency day du trong backend.
+
+
+5. EAN Sorter
+-------------
+Muc dich:
+- Scan folder anh.
+- Detect barcode/EAN.
+- Sort file vao folder theo EAN.
+
+Quy trinh co ban:
+1. Mo tab EAN Sorter.
+2. Pick folder can scan.
+3. Chay scan.
+4. Review ket qua EAN/barcode.
+5. Ap dung sort/copy tuy theo workflow.
+
+Luu y:
+- Neu barcode trung nhau, app co the yeu cau user chon cach xu ly duplicate.
+- Anh mo, nho, bi crop barcode co the scan khong chinh xac.
+
+
+6. EAN Renamer
+--------------
+Muc dich:
+- Doi ten/copy anh product theo EAN va category.
+- Ho tro drag-and-drop anh vao cac cot Packshot, Human, Normal Lifestyle, Artwork, Duplicate.
+
+
+6.1 Chon folder
+---------------
+1. Mo tab EAN Renamer.
+2. Bam Pick Folder.
+3. Chon folder source.
+
+App se scan:
+- Anh nam truc tiep trong root folder.
+- Anh nam trong folder con.
+
+Neu anh nam trong folder con, ten folder con duoc xem la EAN cua anh do.
+
+
+6.2 Cac cot chinh
+-----------------
+Unsorted:
+- Anh moi scan vao se nam o day.
+
+Packshot:
+- Anh packshot/product main image.
+
+Lifestyle/Human:
+- Anh lifestyle co nguoi/model.
+
+Lifestyle/Normal:
+- Anh lifestyle khong phai human/model.
+
+Artwork:
+- Artwork, label, design asset.
+
+Duplicate:
+- Dung de gom cac anh duplicate/variant ma user tu xac nhan.
+- Vi du cung mot shot nhung khac file type: .jpg va .png.
+
+
+6.3 Output folders
+------------------
+Output bar co cac folder rieng:
+
+- Packshot
+- Human
+- Normal Lifestyle
+- Artwork
+
+Khi chay Copy mode, output duoc chia theo category.
+
+
+6.4 Action mode
+---------------
+Trong Settings:
+
+Copy:
+- Copy file sang output folder.
+- Khong doi file source.
+
+In-folder rename:
+- Doi ten ngay trong folder source.
+- Nen dung can than hon va nen Preview truoc.
+
+
+6.5 Naming mode
+---------------
+Per category:
+- Danh so rieng theo tung EAN + category.
+- Neu chi co 1 anh trong category va khong bat 1st: ten co the la {EAN}.ext.
+- Neu co nhieu anh: {EAN}_1.ext, {EAN}_2.ext.
+
+Continuous:
+- Danh so lien tuc theo EAN qua cac category.
+- Vi du: {EAN}_1.jpg, {EAN}_2.jpg, {EAN}_3.jpg.
+
+Prefixed:
+- Dung prefix category trong ten file.
+- Format:
+  {EAN}_{PREFIX}_{number}.{extension}
+
+Prefix mac dinh:
+- Packshot: Pack_shot
+- Human: Human
+- Normal Lifestyle: Normal_Lifestyle
+- Artwork: Artwork
+
+Vi du:
+8809864754188_Pack_shot_1.jpg
+8809864754188_Human_1.jpg
+8809864754188_Normal_Lifestyle_1.jpg
+8809864754188_Artwork_1.jpg
+
+
+6.6 Custom EAN
+--------------
+Neu nhap Custom EAN:
+- App dung Custom EAN thay cho EAN detect tu folder.
+- Ap dung cho cac file duoc process trong lan do.
+
+
+6.7 Product Name
+----------------
+Product Name khong tu dong ep naming mode nua.
+
+Neu chi nhap Product Name va khong tick EAN_ProductName:
+- Naming mode van chay theo setting user chon.
+- Neu dang chon Prefixed, output van la prefix:
+  {EAN}_Pack_shot_1.jpg
+
+Neu tick checkbox EAN_ProductName:
+- App dung naming continuous theo product name:
+  {EAN}_{PRODUCT_NAME}_{number}.ext
+
+Vi du:
+8809864754188_MY_PRODUCT_1.jpg
+8809864754188_MY_PRODUCT_2.jpg
+
+
+6.8 Quy tac 1st
+---------------
+Checkbox 1st o cac cot:
+- Cho phep user danh dau anh se duoc uu tien lam anh so 1.
+
+Voi Prefixed mode + Duplicate:
+- Neu user keo cac anh duplicate vao Duplicate > PACK SHOT va bat 1st,
+  app xem cac file do la cung mot shot so 1.
+
+Vi du:
+8809864754188_Pack_shot_1.jpg
+8809864754188_Pack_shot_1.png
+
+Tuong tu voi Human:
+8809864754188_Human_1.jpg
+8809864754188_Human_1.png
+
+Luu y:
+- Neu trong cung mot duplicate group co 2 file cung extension cung muon thanh _1.jpg,
+  Windows se bi trung ten. App se bao conflict.
+
+
+6.9 Preview va Apply
+--------------------
+Nen bam Preview truoc khi Apply.
+
+Preview se hien:
+- Current Name
+- Output Path
+- Status
+
+Neu thay dung:
+- Bam Copy hoac Rename.
+
+Neu sai:
+- Keo lai anh vao cot dung.
+- Sua naming mode/output/custom EAN.
+- Preview lai.
+
+
+6.10 Undo
+---------
+Sau khi Apply, neu app co log undo:
+- Bam Undo de revert thao tac gan nhat.
+
+Luu y:
+- Undo phu thuoc vao log trong .ean-renamer\logs.
+- Neu file da bi user di chuyen/xoa sau khi rename, Undo co the khong khop.
+
+
+7. Khi gap loi
+--------------
+Thu tu xu ly:
+
+1. Dong app va mo lai.
+2. Chay REPAIR_GRIMOIRE.bat.
+3. Chay DIAGNOSE_GRIMOIRE.bat.
+4. Gui file report trong folder diagnostics cho nguoi support.
+
+
+8. Best practices
+-----------------
+- Luon Preview truoc khi Rename in-folder.
+- Nen dung Copy mode khi test rule moi.
+- Nen giu source folder rieng va output folder rieng.
+- Nen dat anh duplicate khac file type vao Duplicate column de app giu cung slot number.
+- Nen tranh dat output folder trung source folder.

@@ -1,0 +1,41 @@
+# GRIMOIRE — merged dependencies from AIO + EAN Sorter + EAN Renamer
+# ── Web framework ──
+fastapi==0.136.3
+uvicorn[standard]==0.48.0
+pydantic==2.13.4
+pydantic-settings==2.14.1
+python-multipart==0.0.30
+
+# ── Data processing ──
+pandas==3.0.3
+polars==1.41.2
+duckdb==1.5.3
+pandera==0.31.1
+
+# ── Excel / reporting ──
+openpyxl==3.1.5
+xlsxwriter==3.2.9
+
+# ── Config ──
+PyYAML==6.0.3
+
+# ── Image processing ──
+Pillow==12.2.0
+pillow-heif==1.1.0
+numpy==2.4.6
+opencv-python-headless==4.13.0.92
+
+# ── AI / ML tools ──
+mediapipe==0.10.35
+rembg==2.0.75
+onnxruntime==1.26.0
+
+# ── Video / media ──
+imageio-ffmpeg==0.6.0
+
+# ── Desktop app ──
+pywebview==6.2.1
+
+# ── Testing ──
+pytest==9.0.3
+httpx2==2.4.0

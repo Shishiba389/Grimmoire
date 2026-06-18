@@ -1,0 +1,13 @@
+pillow
+opencv-python-headless
+pyvips
+pyvips-binary
+numpy
+redis
+rq
+celery
+minio
+pytest
+onnxruntime
+rembg
+mediapipe
