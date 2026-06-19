@@ -18,6 +18,7 @@ import {
   EanRenamerView as RealEanRenamerView,
   EanSorterView as RealEanSorterView,
   ImagesCheckView as RealImagesCheckView,
+  PackshotBrowserView as RealPackshotBrowserView,
   ImageEditView as RealImageEditView,
 } from "./components/ToolViews";
 import { apiJson, apiUrl } from "./components/ToolShared";
@@ -62,6 +63,19 @@ function IconImagesCheck() {
       <circle cx="8" cy="8" r="1" />
       <path d="M17 7l3 3" />
       <path d="M20 7l-3 3" />
+    </svg>
+  );
+}
+
+function IconPackshotBrowser() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 8h10" />
+      <path d="M7 12h4" />
+      <path d="M14 12l3 3" />
+      <path d="M17 12l-3 3" />
+      <circle cx="9" cy="16" r="1" />
     </svg>
   );
 }
@@ -207,9 +221,10 @@ const SHORTCUTS: Record<string, string> = {
   "/data-qc": "2",
   "/image-edit": "3",
   "/images-check": "4",
-  "/ean-sorter": "5",
-  "/ean-renamer": "6",
-  "/credits": "7",
+  "/packshot-browser": "5",
+  "/ean-sorter": "6",
+  "/ean-renamer": "7",
+  "/credits": "8",
 };
 
 /* â”€â”€â”€ Sidebar â”€â”€â”€ */
@@ -219,6 +234,7 @@ const NAV_ITEMS = [
   { to: "/data-qc", label: "Data QC", icon: IconDataQC, img: "/icons/data-qc.png", mono: false },
   { to: "/image-edit", label: "Image Edit", icon: IconImageEdit, img: "/icons/image-edit.png", mono: false },
   { to: "/images-check", label: "Images Check", icon: IconImagesCheck, img: null, mono: false },
+  { to: "/packshot-browser", label: "Packshot Browser", icon: IconPackshotBrowser, img: "/icons/ean-sorter-gallery.png", mono: false },
   { to: "/ean-sorter", label: "EAN Sorter", icon: IconEANSorter, img: "/icons/ean-sorter.png", mono: true },
   { to: "/ean-renamer", label: "EAN Renamer", icon: IconEANRenamer, img: "/icons/ean-renamer.png", mono: false },
   { to: "/credits", label: "Credits", icon: IconCredits, img: null, mono: false },
@@ -294,6 +310,7 @@ const ROUTE_NAMES: Record<string, string> = {
   "/data-qc": "Data Quality Control",
   "/image-edit": "Image Edit",
   "/images-check": "Images Check",
+  "/packshot-browser": "Packshot Browser",
   "/ean-sorter": "EAN Sorter",
   "/ean-renamer": "EAN Renamer",
   "/credits": "Credits",
@@ -407,13 +424,14 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.18.2";
+const APP_VERSION = "2026.06.19.0";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
   { to: "/data-qc", title: "Data QC", desc: "Audit master data and generate reports", keywords: ["data", "qc", "audit", "master", "report", "quality"] },
   { to: "/image-edit", title: "Image Edit", desc: "Batch resize, canvas, upscale, export", keywords: ["image", "edit", "upscale", "resize", "background", "canvas"] },
   { to: "/images-check", title: "Images Check", desc: "Scan folders and delete rejected images", keywords: ["images", "check", "delete", "clean", "review", "gallery", "slideshow"] },
+  { to: "/packshot-browser", title: "Packshot Browser", desc: "Browse synced packshot folders, hover preview, select, copy, and export reports", keywords: ["packshot", "browser", "finder", "preview", "hover", "onedrive", "copy", "ean"] },
   { to: "/ean-sorter", title: "EAN Sorter", desc: "Scan EANs and sort files into folders", keywords: ["ean", "sort", "sorter", "barcode", "folder", "status"] },
   { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images by EAN", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name"] },
   { to: "/credits", title: "Credits", desc: "MDX team credits", keywords: ["credits", "team", "about"] },
@@ -422,6 +440,7 @@ const COMMANDS: CommandItem[] = [
 const GRIMOIRE_TIPS = [
   "Run Preview before any in-folder rename so conflicts are visible before files move.",
   "Images Check scans every subfolder, so point it at the highest product folder you trust.",
+  "Packshot Browser scans filenames first, then loads previews on demand so synced OneDrive folders stay responsive.",
   "Use EAN_ProductName in EAN Renamer only when the product name should control continuous numbering.",
   "EAN Sorter writes EAN_report.xlsx in the scanned folder after sorting.",
   "Use Copy mode first when testing a new naming rule.",
@@ -450,6 +469,7 @@ function recentSearchRoots() {
   add(localStorage.getItem("grimoire-ean-renamer-output-roots"));
   add(localStorage.getItem("grimoire-ean-sorter-root"));
   add(localStorage.getItem("grimoire-images-check-root"));
+  add(localStorage.getItem("grimoire-packshot-browser-root"));
   return Array.from(roots);
 }
 
@@ -638,6 +658,15 @@ const FEATURES = [
     gradient: "linear-gradient(135deg, #0891b2 0%, #0e7490 100%)",
   },
   {
+    to: "/packshot-browser",
+    title: "Packshot Browser",
+    desc: "Browse synced packshot folders, hover preview images, select files, and copy them to output",
+    icon: IconPackshotBrowser,
+    img: "/icons/ean-sorter-gallery.png",
+    mono: false,
+    gradient: "linear-gradient(135deg, #0f766e 0%, #2563eb 100%)",
+  },
+  {
     to: "/ean-sorter",
     title: "EAN Sorter",
     desc: "Scan folders for EAN barcodes, sort files into organized structure",
@@ -713,6 +742,17 @@ const BANNERS = [
 ];
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: "2026.06.19.0",
+    date: "2026-06-19",
+    title: "Packshot Browser tab",
+    type: "Packshot Browser",
+    changes: [
+      "Added a dedicated Packshot Browser tab for scanning synced folders without requiring Excel input.",
+      "Images can be searched by EAN, folder, filename, and product keywords with hover previews and detailed file metadata.",
+      "Selected images can be copied to an output folder with folder preservation or EAN grouping plus a CSV report.",
+    ],
+  },
   {
     version: "2026.06.18.2",
     date: "2026-06-18",
@@ -1116,7 +1156,7 @@ function AppShell() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const routes = ["/", "/data-qc", "/image-edit", "/images-check", "/ean-sorter", "/ean-renamer", "/credits"];
+        const routes = ["/", "/data-qc", "/image-edit", "/images-check", "/packshot-browser", "/ean-sorter", "/ean-renamer", "/credits"];
         const idx = parseInt(e.key) - 1;
         if (idx >= 0 && idx < routes.length) {
           e.preventDefault();
@@ -1155,6 +1195,12 @@ function AppShell() {
             path="/images-check"
             element={
               <RealImagesCheckView />
+            }
+          />
+          <Route
+            path="/packshot-browser"
+            element={
+              <RealPackshotBrowserView />
             }
           />
           <Route

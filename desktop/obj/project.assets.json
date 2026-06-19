@@ -129,7 +129,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Damia\\.nuget\\packages\\": {}
+    "C:\\Users\\NguyenHoangDungE·ORI\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
@@ -137,11 +137,11 @@
       "projectUniqueName": "D:\\GRIMOIRE\\desktop\\Grimoire.Desktop.csproj",
       "projectName": "Grimoire",
       "projectPath": "D:\\GRIMOIRE\\desktop\\Grimoire.Desktop.csproj",
-      "packagesPath": "C:\\Users\\Damia\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\NguyenHoangDungE·ORI\\.nuget\\packages\\",
       "outputPath": "D:\\GRIMOIRE\\desktop\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\Damia\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\NguyenHoangDungE·ORI\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0-windows"
@@ -197,7 +197,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "D:\\GRIMOIRE\\.dotnet\\sdk\\10.0.301/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.301/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",

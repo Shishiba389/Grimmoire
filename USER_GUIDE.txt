@@ -8,6 +8,8 @@ GRIMOIRE la bo cong cu lam viec voi product data va product images, gom cac modu
 - Dashboard
 - Data QC
 - Image Edit
+- Images Check
+- Packshot Browser
 - EAN Sorter
 - EAN Renamer
 - Settings
@@ -28,6 +30,8 @@ Dashboard la man hinh tong quan. Tu day co the mo nhanh cac tool:
 
 - Data Quality Control
 - Image Edit
+- Images Check
+- Packshot Browser
 - EAN Sorter
 - EAN Renamer
 
@@ -69,7 +73,52 @@ Luu y:
 - Mot so tinh nang AI can model/dependency day du trong backend.
 
 
-5. EAN Sorter
+5. Images Check
+---------------
+Muc dich:
+- Scan folder anh.
+- Xem nhanh anh theo folder.
+- Mark anh can xoa va xoa sau khi confirm.
+
+Luu y:
+- Images Check phu hop de review/clean folder.
+- Neu chi muon tim, preview, chon va copy packshot, dung Packshot Browser.
+
+
+6. Packshot Browser
+-------------------
+Muc dich:
+- Browse folder packshot da sync ve may ma khong can file Excel.
+- Search theo EAN, folder, ten file, brand/keyword trong filename.
+- Hover vao anh de xem preview lon va thong tin file.
+- Chon anh can lay va copy sang output folder.
+
+Quy trinh co ban:
+1. Mo tab Packshot Browser.
+2. Bam Choose de chon source folder.
+3. Bam Scan.
+4. Dung sidebar group/folder hoac search de loc anh.
+5. Hover vao thumbnail de xem preview va filename chi tiet.
+6. Tick anh can copy.
+7. Chon output folder.
+8. Bam Copy selected.
+
+Output:
+- Anh duoc copy sang output folder.
+- App tao packshot_browser_report.csv trong output folder.
+
+OneDrive:
+- Folder OneDrive da sync co the scan duoc.
+- File cloud-only se hien trang thai Cloud.
+- App uu tien dung Windows cached thumbnail cho file Cloud, giong thumbnail trong File Explorer.
+- Neu Windows chua co cached thumbnail, app thu SharePoint online thumbnail neu da co token dang nhap.
+- Neu ca Windows cache va SharePoint thumbnail deu khong co, app hien Cloud placeholder thay vi doc file goc.
+- App khong tu tao thumbnail/preview tu file Cloud de tranh OneDrive tu download full file.
+- File Cloud chi bi download khi user chon anh do va bam Copy selected.
+- Khi Copy selected, OneDrive can internet va OneDrive phai dang chay.
+
+
+7. EAN Sorter
 -------------
 Muc dich:
 - Scan folder anh.
@@ -88,14 +137,14 @@ Luu y:
 - Anh mo, nho, bi crop barcode co the scan khong chinh xac.
 
 
-6. EAN Renamer
+8. EAN Renamer
 --------------
 Muc dich:
 - Doi ten/copy anh product theo EAN va category.
 - Ho tro drag-and-drop anh vao cac cot Packshot, Human, Normal Lifestyle, Artwork, Duplicate.
 
 
-6.1 Chon folder
+8.1 Chon folder
 ---------------
 1. Mo tab EAN Renamer.
 2. Bam Pick Folder.
@@ -108,7 +157,7 @@ App se scan:
 Neu anh nam trong folder con, ten folder con duoc xem la EAN cua anh do.
 
 
-6.2 Cac cot chinh
+8.2 Cac cot chinh
 -----------------
 Unsorted:
 - Anh moi scan vao se nam o day.
@@ -130,7 +179,7 @@ Duplicate:
 - Vi du cung mot shot nhung khac file type: .jpg va .png.
 
 
-6.3 Output folders
+8.3 Output folders
 ------------------
 Output bar co cac folder rieng:
 
@@ -142,7 +191,7 @@ Output bar co cac folder rieng:
 Khi chay Copy mode, output duoc chia theo category.
 
 
-6.4 Action mode
+8.4 Action mode
 ---------------
 Trong Settings:
 
@@ -155,7 +204,7 @@ In-folder rename:
 - Nen dung can than hon va nen Preview truoc.
 
 
-6.5 Naming mode
+8.5 Naming mode
 ---------------
 Per category:
 - Danh so rieng theo tung EAN + category.
@@ -184,14 +233,14 @@ Vi du:
 8809864754188_Artwork_1.jpg
 
 
-6.6 Custom EAN
+8.6 Custom EAN
 --------------
 Neu nhap Custom EAN:
 - App dung Custom EAN thay cho EAN detect tu folder.
 - Ap dung cho cac file duoc process trong lan do.
 
 
-6.7 Product Name
+8.7 Product Name
 ----------------
 Product Name khong tu dong ep naming mode nua.
 
@@ -209,7 +258,7 @@ Vi du:
 8809864754188_MY_PRODUCT_2.jpg
 
 
-6.8 Quy tac 1st
+8.8 Quy tac 1st
 ---------------
 Checkbox 1st o cac cot:
 - Cho phep user danh dau anh se duoc uu tien lam anh so 1.
@@ -231,7 +280,7 @@ Luu y:
   Windows se bi trung ten. App se bao conflict.
 
 
-6.9 Preview va Apply
+8.9 Preview va Apply
 --------------------
 Nen bam Preview truoc khi Apply.
 
@@ -249,7 +298,7 @@ Neu sai:
 - Preview lai.
 
 
-6.10 Undo
+8.10 Undo
 ---------
 Sau khi Apply, neu app co log undo:
 - Bam Undo de revert thao tac gan nhat.
@@ -259,7 +308,7 @@ Luu y:
 - Neu file da bi user di chuyen/xoa sau khi rename, Undo co the khong khop.
 
 
-7. Khi gap loi
+9. Khi gap loi
 --------------
 Thu tu xu ly:
 
@@ -269,10 +318,11 @@ Thu tu xu ly:
 4. Gui file report trong folder diagnostics cho nguoi support.
 
 
-8. Best practices
+10. Best practices
 -----------------
 - Luon Preview truoc khi Rename in-folder.
 - Nen dung Copy mode khi test rule moi.
 - Nen giu source folder rieng va output folder rieng.
+- Khi dung Packshot Browser, nen dat output folder ngoai source folder.
 - Nen dat anh duplicate khac file type vao Duplicate column de app giu cung slot number.
 - Nen tranh dat output folder trung source folder.

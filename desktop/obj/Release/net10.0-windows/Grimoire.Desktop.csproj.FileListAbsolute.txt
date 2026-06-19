@@ -104,4 +104,4 @@ D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\icons\banner-ean-renamer
 D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\icons\banner-ean-sorter.jpg
 D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\icons\banner-image-edit.jpg
 D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-ClFcB8zw.css
-D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-CXGhE2ys.js
+D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-Dq-21i8y.js
