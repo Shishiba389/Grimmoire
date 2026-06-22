@@ -78,9 +78,6 @@ def run_image_edit(
             current_file="Preparing output plan",
             worker_count=effective_worker_count(request),
         )
-        if request.output_mode == OutputMode.local_folder:
-            clear_directory_contents(work_dir)
-            work_dir.mkdir(parents=True, exist_ok=True)
         used_paths: set[str] = set()
         ean_counts: dict[str, int] = {}
         tasks = []
@@ -326,16 +323,6 @@ def is_supported_image_file(path: Path) -> bool:
     if path.name.startswith(".") or path.name.startswith("~"):
         return False
     return path.suffix.lower() in SUPPORTED_IMAGE_SUFFIXES
-
-
-def clear_directory_contents(directory: Path) -> None:
-    if not directory.exists():
-        return
-    for child in directory.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child)
-        else:
-            child.unlink()
 
 
 def safe_extract_zip(archive: zipfile.ZipFile, extract_dir: Path) -> None:

@@ -45,6 +45,16 @@ interface DimensionPreset {
   h: number;
 }
 
+interface OutputItem {
+  id: string;
+  kind: "preview" | "job";
+  label: string;
+  url?: string;
+  jobId?: string;
+  outputPath?: string | null;
+  createdAt: string;
+}
+
 /* ── Constants ── */
 
 const DIMENSION_PRESETS: DimensionPreset[] = [
@@ -77,6 +87,9 @@ const CANVAS_BG_WARNINGS: Partial<Record<CanvasBg, string>> = {
 const LAYOUT_WARNINGS: Partial<Record<LayoutPreset, string>> = {
   ai_canvas_expand: "AI Canvas Expand requires a compatible GPU and may be slow on large batches.",
 };
+
+const CUSTOM_PRESETS_STORAGE_KEY = "grimoire-image-edit-custom-dimension-presets";
+const MAX_OUTPUT_HISTORY = 12;
 
 /* ── Defaults ── */
 
@@ -165,6 +178,28 @@ function namingPreview(rule: NamingRule, template: string): string {
 
 function outputModeForBackend(mode: OutputMode): "zip" | "local_folder" {
   return mode === "local" ? "local_folder" : "zip";
+}
+
+function loadCustomPresets(): DimensionPreset[] {
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => ({
+        label: String(item?.label || "").trim(),
+        w: Number(item?.w),
+        h: Number(item?.h),
+      }))
+      .filter((item) => item.label && Number.isFinite(item.w) && Number.isFinite(item.h) && item.w > 0 && item.h > 0);
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomPresets(presets: DimensionPreset[]) {
+  window.localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(presets));
 }
 
 function namingTemplate(rule: NamingRule, template: string): string {
@@ -275,19 +310,42 @@ export function ImageEditView() {
   const [maxFileSize, setMaxFileSize] = useState(DEFAULTS.maxFileSize);
   const [namingRule, setNamingRule] = useState<NamingRule>(DEFAULTS.namingRule);
   const [customTemplate, setCustomTemplate] = useState(DEFAULTS.customTemplate);
+  const [customDimensionPresets, setCustomDimensionPresets] = useState<DimensionPreset[]>(() => loadCustomPresets());
 
   /* ── Job state ── */
   const [busy, setBusy] = useState(false);
   const [startedJob, setStartedJob] = useState<JobRecord | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [outputs, setOutputs] = useState<OutputItem[]>([]);
+  const [activeOutputId, setActiveOutputId] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dimensionPresets = [...DIMENSION_PRESETS, ...customDimensionPresets];
+  const activeOutput = outputs.find((item) => item.id === activeOutputId) || outputs[0] || null;
+  const isCustomSavedPreset = customDimensionPresets.some((item) => item.label === preset);
 
   const job = useJobPolling(startedJob, (done) => {
     addLog(done.status === "completed" ? "SUCCESS" : "ERROR",
       done.status === "completed" ? "Processing complete" : `Job failed: ${done.error || "unknown error"}`);
+    if (done.status === "completed") {
+      const outputItem: OutputItem = {
+        id: `job-${done.id}`,
+        kind: "job",
+        label: done.original_filename || `Job ${done.id.slice(0, 8)}`,
+        jobId: done.id,
+        outputPath: done.output_path,
+        createdAt: new Date().toLocaleTimeString("en-GB", { hour12: false }),
+      };
+      setOutputs((prev) => {
+        const next = [outputItem, ...prev.filter((item) => item.id !== outputItem.id)];
+        next.slice(MAX_OUTPUT_HISTORY).forEach((item) => {
+          if (item.url) URL.revokeObjectURL(item.url);
+        });
+        return next.slice(0, MAX_OUTPUT_HISTORY);
+      });
+      setActiveOutputId(outputItem.id);
+    }
     notify(done.status === "completed" ? "Image edit output ready" : "Image edit failed", {
       type: done.status === "completed" ? "success" : "error",
       message: done.error || done.output_path || undefined,
@@ -306,11 +364,38 @@ export function ImageEditView() {
   /* ── Preset change ── */
   function onPresetChange(label: string) {
     setPreset(label);
-    const p = DIMENSION_PRESETS.find((d) => d.label === label);
+    const p = dimensionPresets.find((d) => d.label === label);
     if (p && p.w > 0) {
       setWidth(p.w);
       setHeight(p.h);
     }
+  }
+
+  function saveCurrentDimensionPreset() {
+    const name = window.prompt("Preset name", preset !== "Custom" ? preset : `${width} x ${height}`);
+    const label = name?.trim();
+    if (!label) return;
+    if (DIMENSION_PRESETS.some((item) => item.label === label)) {
+      notify("Use a different preset name", { type: "warning", message: "Built-in presets cannot be overwritten." });
+      return;
+    }
+    const nextPreset = { label, w: width, h: height };
+    const next = [nextPreset, ...customDimensionPresets.filter((item) => item.label !== label)];
+    setCustomDimensionPresets(next);
+    saveCustomPresets(next);
+    setPreset(label);
+    addLog("SUCCESS", `Saved preset: ${label}`);
+    notify("Custom preset saved", { type: "success", message: `${label} (${width} x ${height})` });
+  }
+
+  function deleteCurrentDimensionPreset() {
+    const deletedPreset = preset;
+    const next = customDimensionPresets.filter((item) => item.label !== deletedPreset);
+    setCustomDimensionPresets(next);
+    saveCustomPresets(next);
+    setPreset("Custom");
+    addLog("INFO", `Deleted preset: ${deletedPreset}`);
+    notify("Custom preset deleted", { type: "info" });
   }
 
   /* ── Width/height with lock ── */
@@ -443,7 +528,6 @@ export function ImageEditView() {
     setNamingRule(DEFAULTS.namingRule);
     setCustomTemplate(DEFAULTS.customTemplate);
     setQueue([]);
-    setPreviewUrl(null);
     addLog("INFO", "All settings reset to defaults");
   }
 
@@ -466,7 +550,21 @@ export function ImageEditView() {
       const blob = await fetch(apiUrl("/api/image-edit/preview"), { method: "POST", body: data })
         .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.blob(); });
       const url = URL.createObjectURL(blob);
-      setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+      const outputItem: OutputItem = {
+        id: `preview-${Date.now()}`,
+        kind: "preview",
+        label: file.name,
+        url,
+        createdAt: new Date().toLocaleTimeString("en-GB", { hour12: false }),
+      };
+      setOutputs((prev) => {
+        const next = [outputItem, ...prev];
+        next.slice(MAX_OUTPUT_HISTORY).forEach((item) => {
+          if (item.url) URL.revokeObjectURL(item.url);
+        });
+        return next.slice(0, MAX_OUTPUT_HISTORY);
+      });
+      setActiveOutputId(outputItem.id);
       addLog("SUCCESS", "Preview generated");
     } catch (error) {
       addLog("ERROR", `Preview failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -655,9 +753,13 @@ export function ImageEditView() {
           <div className="ie-scroll-area">
             {/* Dimension Preset */}
             <Field label="Dimension Preset">
-              <select value={preset} onChange={(e) => onPresetChange(e.target.value)}>
-                {DIMENSION_PRESETS.map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
-              </select>
+              <div className="ie-preset-row">
+                <select value={preset} onChange={(e) => onPresetChange(e.target.value)}>
+                  {dimensionPresets.map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
+                </select>
+                <button className="btn btn-secondary btn-sm" onClick={saveCurrentDimensionPreset}>Save</button>
+                {isCustomSavedPreset && <button className="btn btn-secondary btn-sm" onClick={deleteCurrentDimensionPreset}>Delete</button>}
+              </div>
             </Field>
 
             {/* Width / Height / Lock */}
@@ -920,18 +1022,38 @@ export function ImageEditView() {
             ))}
           </div>
 
-          {/* Preview frame */}
+          <div className="ie-output-header">
+            <h2>Outputs</h2>
+            <span className="ie-queue-count">{outputs.length}</span>
+          </div>
+
+          <div className="ie-output-list">
+            {outputs.length === 0 && <div className="empty-box">No outputs yet.</div>}
+            {outputs.map((item) => (
+              <button
+                key={item.id}
+                className={`ie-output-item ${activeOutput?.id === item.id ? "active" : ""}`}
+                onClick={() => setActiveOutputId(item.id)}
+              >
+                <span>{item.kind === "preview" ? "Preview" : "Job"}</span>
+                <strong title={item.outputPath || item.label}>{item.label}</strong>
+                <em>{item.createdAt}</em>
+              </button>
+            ))}
+          </div>
+
           <div className="ie-preview-frame">
-            {previewUrl ? (
-              <img src={previewUrl} alt="Preview output" />
+            {activeOutput?.url ? (
+              <img src={activeOutput.url} alt="Preview output" />
+            ) : activeOutput?.kind === "job" ? (
+              <div className="empty-box">Job output is ready to download.</div>
             ) : (
               <div className="empty-box">Output preview will appear here.</div>
             )}
           </div>
 
-          {/* Download */}
-          {job?.status === "completed" && (
-            <a className="btn btn-primary ie-download-btn" href={apiUrl(`/api/jobs/${encodeURIComponent(job.id)}/download`)} target="_blank" rel="noreferrer">
+          {activeOutput?.kind === "job" && activeOutput.jobId && (
+            <a className="btn btn-primary ie-download-btn" href={apiUrl(`/api/jobs/${encodeURIComponent(activeOutput.jobId)}/download`)} target="_blank" rel="noreferrer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
               Download
             </a>

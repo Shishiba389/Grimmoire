@@ -764,7 +764,11 @@ def create_image_edit_folder_job(background_tasks: BackgroundTasks, payload: Ima
 
     job_id = str(uuid.uuid4())
     if payload.output_folder_path:
-        output_dir = Path(payload.output_folder_path).expanduser().resolve()
+        output_root = Path(payload.output_folder_path).expanduser().resolve()
+        if output_root == input_folder or input_folder in output_root.parents:
+            raise HTTPException(status_code=400, detail="Output folder must be outside the input folder")
+        run_label = datetime.now().strftime("image_edit_%Y%m%d_%H%M%S")
+        output_dir = output_root / f"{run_label}_{job_id[:8]}"
     else:
         output_dir = settings.resolve_storage_path(settings.outputs_dir) / job_id
     if output_dir == input_folder or input_folder in output_dir.parents:
