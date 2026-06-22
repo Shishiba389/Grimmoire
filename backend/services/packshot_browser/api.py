@@ -115,6 +115,13 @@ def _matches_query(image: dict[str, object], query: str) -> bool:
     return q in haystack
 
 
+def _is_in_folder(image_folder: str, selected_folder: str) -> bool:
+    if selected_folder == ".":
+        return True
+    normalized = selected_folder.rstrip("/")
+    return image_folder == normalized or image_folder.startswith(f"{normalized}/")
+
+
 def _folder_depth(folder: str) -> int:
     return 0 if folder == "." else folder.count("/") + 1
 
@@ -258,7 +265,7 @@ def list_packshot_images(payload: ImageListPayload) -> dict[str, object]:
     query = payload.query or ""
     images = [
         image for image in index["images"]
-        if (folder == "." or str(image.get("folder", "")) == folder)
+        if _is_in_folder(str(image.get("folder", "")), folder)
         and _matches_query(image, query)
     ]
     start = payload.offset
@@ -728,7 +735,7 @@ def _shell_cached_thumbnail_path(path: Path, size: int = 420) -> Path | None:
         image.save(target, "JPEG", quality=84, optimize=True)
         return target
     finally:
-        ctypes.windll.gdi32.DeleteObject(hbitmap)
+        ctypes.windll.gdi32.DeleteObject(ctypes.c_void_p(hbitmap))
 
 
 def _get_shell_cached_hbitmap(path: Path, size: int) -> int | None:
@@ -778,7 +785,25 @@ def _hbitmap_to_pil(hbitmap: int):
     gdi32 = ctypes.windll.gdi32
     user32 = ctypes.windll.user32
     bitmap = _BITMAP()
-    if not gdi32.GetObjectW(hbitmap, ctypes.sizeof(bitmap), ctypes.byref(bitmap)):
+    gdi32.GetObjectW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    gdi32.GetObjectW.restype = ctypes.c_int
+    gdi32.GetDIBits.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint,
+        ctypes.c_uint,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint,
+    ]
+    gdi32.GetDIBits.restype = ctypes.c_int
+    user32.GetDC.argtypes = [ctypes.c_void_p]
+    user32.GetDC.restype = ctypes.c_void_p
+    user32.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    user32.ReleaseDC.restype = ctypes.c_int
+
+    hbitmap_handle = ctypes.c_void_p(hbitmap)
+    if not gdi32.GetObjectW(hbitmap_handle, ctypes.sizeof(bitmap), ctypes.byref(bitmap)):
         return None
 
     width = int(bitmap.bmWidth)
@@ -800,7 +825,7 @@ def _hbitmap_to_pil(hbitmap: int):
     try:
         rows = gdi32.GetDIBits(
             hdc,
-            hbitmap,
+            hbitmap_handle,
             0,
             height,
             buffer,

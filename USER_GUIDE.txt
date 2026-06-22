@@ -185,11 +185,12 @@ Purpose:
 Key features:
 - Index local or synced packshot folders without loading every image into the UI at once.
 - Browse the real folder tree on the left with image counts.
-- Load images only after selecting a folder.
+- Load images only after selecting a folder; parent folders include images from their child folders.
 - Search inside the selected folder by EAN, filename, folder, extension, and keywords.
 - Load more images page by page for very large libraries.
 - Hover preview with metadata.
 - Thumbnails load progressively with a limited queue so large folders remain responsive.
+- Cloud-only OneDrive thumbnails use Windows Explorer cached previews when available, without downloading originals.
 - Select and copy files to an output folder.
 - Generate a CSV report.
 - Handle OneDrive cloud-only files carefully.

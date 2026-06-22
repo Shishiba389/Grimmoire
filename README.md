@@ -35,7 +35,7 @@ Core workflow:
 
 1. Choose a source folder.
 2. Scan all image files recursively.
-3. Review folders and EAN groups.
+3. Review folders and EAN groups; selecting a parent folder includes images from its child folders.
 4. Search by EAN, filename, folder, or keyword.
 5. Hover over images to see a larger preview and detailed metadata.
 6. Select visible images or individual files.
@@ -47,7 +47,7 @@ Cloud-file behavior:
 
 - Local files use normal thumbnails and metadata.
 - Cloud-only OneDrive/SharePoint files do not trigger full image reads for preview.
-- The app first asks Windows for cached Explorer thumbnails.
+- The app first asks Windows for cached Explorer thumbnails and converts those cached bitmaps without reading the original file.
 - If Windows has no cached thumbnail, the app tries SharePoint online thumbnails using the existing authenticated token cache.
 - Full file access is only triggered by an explicit copy/download action.
 

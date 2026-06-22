@@ -439,7 +439,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.22.2";
+const APP_VERSION = "2026.06.22.3";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
@@ -758,6 +758,17 @@ const BANNERS = [
 ];
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: "2026.06.22.3",
+    date: "2026-06-22",
+    title: "Packshot folder and thumbnail hotfix",
+    type: "Packshot Browser",
+    changes: [
+      "Selecting a parent folder now shows images from its child folders, matching the folder counts in the sidebar.",
+      "Cloud-only OneDrive thumbnails now use Windows Explorer cached bitmaps more reliably without downloading original files.",
+      "The large-folder workflow keeps progressive thumbnail loading while fixing empty parent-folder views.",
+    ],
+  },
   {
     version: "2026.06.22.2",
     date: "2026-06-22",
