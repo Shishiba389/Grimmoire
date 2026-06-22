@@ -439,7 +439,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.22.0";
+const APP_VERSION = "2026.06.22.1";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
@@ -1080,36 +1080,224 @@ function Dashboard() {
 
 /* Guide */
 
-const GUIDE_SECTIONS = [
+const GUIDE_OVERVIEW = [
+  ["Data QC", "Audit master data files, find missing data, rule issues, duplicates, and export review reports."],
+  ["Image Edit", "Batch process product images: resize, canvas, background cleanup, upscale, naming, and export."],
+  ["Images Check", "Review image folders visually, mark bad images, and delete only after confirmation."],
+  ["Packshot Browser", "Search synced packshot folders by EAN, filename, folder, or keyword, then copy selected files."],
+  ["EAN Sorter", "Scan images for barcodes or EANs and sort files into EAN/status folders."],
+  ["EAN Renamer", "Copy or rename product images by EAN, category, product name, duplicate groups, and naming mode."],
+];
+
+const GUIDE_TABS = [
   {
-    title: "Chon tab theo viec can lam",
-    items: [
-      ["Data QC", "Dung khi can audit file master data, tim missing data, sai format, duplicate, rule validation, roi xuat report de review."],
-      ["Image Edit", "Dung khi can resize/crop/canvas/upscale/remove background hang loat. Neu can giu preset kich thuoc rieng, luu Custom Preset trong tab nay."],
-      ["Images Check", "Dung khi can scan ca folder anh, xem nhanh anh tot/xau, danh dau va xoa file khong dat."],
-      ["Packshot Browser", "Dung khi can tim packshot theo EAN/folder/filename, hover preview, chon anh va copy sang output folder ma khong can Excel."],
-      ["EAN Sorter", "Dung khi can scan barcode/EAN tren anh va sort/copy file vao folder theo EAN/status."],
-      ["EAN Renamer", "Dung khi can copy hoac rename anh product theo EAN, category Packshot/Human/Normal Lifestyle/Artwork va rule naming."],
+    title: "Data QC",
+    purpose: "Use Data QC when the source is a master data Excel or CSV file and the goal is to find data quality issues before the file moves to the next workflow.",
+    features: [
+      "Upload or select master data files.",
+      "Audit required fields, missing values, invalid formats, duplicates, and configured rule checks.",
+      "Generate Excel reports for review, correction, and team handoff.",
+      "Use rule profile settings when the validation scope needs to match the current business rules.",
+    ],
+    steps: [
+      "Open Data QC.",
+      "Select the master data file.",
+      "Choose audit options if the tab exposes them for the current workflow.",
+      "Run the audit and wait for the job to finish.",
+      "Review the summary and exported report.",
+      "Fix the source data, then run the audit again if needed.",
+    ],
+    cases: [
+      "Use it before sending master data to operations, marketplace upload, or another system.",
+      "Use it when product records are rejected because fields are missing or inconsistent.",
+      "Use it when a team needs a report showing what must be corrected.",
+    ],
+    notes: [
+      "If the file cannot be read, check sheet names, header rows, merged cells, and whether the file is actually an exported report instead of the original master data.",
+      "Keep the original input file separate from the generated report.",
     ],
   },
   {
-    title: "Quy trinh an toan nen dung",
-    items: [
-      ["Preview truoc", "Voi Image Edit va EAN Renamer, hay preview truoc khi start/apply de thay output, ten file va conflict."],
-      ["Copy truoc Rename", "Khi test rule moi, dung Copy mode truoc. Chi dung in-folder rename khi da chac rule dung va source da backup."],
-      ["Tach source/output", "Dat output folder khac source folder. Image Edit se tao output theo tung lan chay de tranh ghi de ket qua cu."],
-      ["Scan lai khi folder doi", "Neu user them/xoa/doi ten file ngoai app, scan lai tab dang dung truoc khi apply thao tac tiep theo."],
+    title: "Image Edit",
+    purpose: "Use Image Edit when images need batch processing for marketplace or catalog output.",
+    features: [
+      "Add individual image files or process an input folder.",
+      "Use built-in dimension presets or save custom dimension presets for later sessions.",
+      "Control width, height, aspect lock, fit mode, margins, DPI, canvas background, and layout preset.",
+      "Use image filters such as whitespace removal, product fill, safe padding, white background checks, shadow removal, and background removal.",
+      "Use standard upscale or Real-ESRGAN when local AI tools are available.",
+      "Choose output format, quality, max file size, naming rule, and local or ZIP output.",
+      "Keep recent previews and completed job outputs in the Outputs panel instead of replacing the previous result.",
+    ],
+    steps: [
+      "Open Image Edit.",
+      "Choose files with Add, or select an input folder.",
+      "Pick a dimension preset or enter Width and Height manually.",
+      "Click Save next to Dimension Preset if this size should be reused later.",
+      "Choose layout, canvas, upscale, filter, output, and naming settings.",
+      "Run Preview (First 1) to validate the output on one image.",
+      "Adjust settings if needed, then click Start Processing.",
+      "Use the Outputs panel to switch between recent previews and completed jobs, then download the selected job.",
+    ],
+    cases: [
+      "Use it to make all product images 1000 x 1000, 1500 x 1500, Amazon main image size, or a saved customer-specific preset.",
+      "Use it when images have too much whitespace around the product.",
+      "Use it when the same input batch must be exported as JPG, PNG, WEBP, or TIFF with consistent naming.",
+      "Use local folder output when the processed files should remain directly accessible in a folder; each run creates a separate timestamped output folder.",
+    ],
+    notes: [
+      "Large images and AI upscale can take more RAM and processing time.",
+      "Always preview before a large batch when changing canvas, background, or upscale settings.",
+      "Do not put the output folder inside the input folder.",
     ],
   },
   {
-    title: "Khi gap truong hop thuong gap",
-    items: [
-      ["Can chuan hoa size anh marketplace", "Vao Image Edit, chon preset kich thuoc, Preview First 1, neu dung thi Start Processing. Bam Save de luu preset rieng cho lan sau."],
-      ["Can loc nhanh anh loi trong folder lon", "Vao Images Check, chon folder cha, Scan all, review theo slideshow/gallery, mark Delete roi Save deletion."],
-      ["Can lay packshot tu OneDrive", "Vao Packshot Browser, scan folder synced. Cloud-only file se uu tien thumbnail cache; copy selected moi yeu cau OneDrive tai file goc."],
-      ["Barcode scan sai hoac thieu", "Vao EAN Sorter, review report/preview. Anh mo, barcode nho, bi crop hoac nghieng co the can crop lai hoac scan lai voi anh tot hon."],
-      ["Ten output bi trung", "Trong EAN Renamer, xem Preview status. Neu conflict, doi naming mode, category, duplicate group, custom EAN hoac output folder roi preview lai."],
-      ["App bao loi backend/file", "Dong app mo lai, chay REPAIR_GRIMOIRE.bat, neu van loi chay DIAGNOSE_GRIMOIRE.bat va gui folder diagnostics cho support."],
+    title: "Images Check",
+    purpose: "Use Images Check when the task is visual review and cleanup of a folder tree.",
+    features: [
+      "Scan every supported image in a selected folder.",
+      "Review images in slideshow or gallery mode.",
+      "Filter by image name, folder, or path.",
+      "Mark images for deletion without deleting immediately.",
+      "Save deletion only after confirming the selected rejected files.",
+    ],
+    steps: [
+      "Open Images Check.",
+      "Choose the folder that contains the images to review.",
+      "Click Scan all.",
+      "Use slideshow mode for focused review or gallery mode for faster comparison.",
+      "Mark bad images for deletion.",
+      "Check the Delete count, then click Save deletion when ready.",
+    ],
+    cases: [
+      "Use it when a packshot folder contains blurry, duplicated, wrong, or irrelevant images.",
+      "Use it before Image Edit if the batch should be cleaned first.",
+      "Use it after Image Edit if the output folder needs manual visual QA.",
+    ],
+    notes: [
+      "Deletion is permanent after confirmation.",
+      "If you only need to find and copy good packshots, Packshot Browser is usually safer than deleting files.",
+    ],
+  },
+  {
+    title: "Packshot Browser",
+    purpose: "Use Packshot Browser when the task is finding, previewing, selecting, and copying existing packshot files.",
+    features: [
+      "Scan local or synced folder structures without requiring an Excel file.",
+      "Search by EAN, filename, folder, extension, and product keywords in filenames.",
+      "Browse groups and folders while keeping the source files untouched.",
+      "Hover thumbnails for larger preview and file metadata.",
+      "Select files and copy them to an output folder.",
+      "Export a CSV report of copied or selected files.",
+      "Handle OneDrive cloud-only files carefully by using cached thumbnails when possible.",
+    ],
+    steps: [
+      "Open Packshot Browser.",
+      "Choose the source packshot folder.",
+      "Click Scan.",
+      "Use search or folder/group filters to find the needed product images.",
+      "Hover a thumbnail to inspect it.",
+      "Select the files to collect.",
+      "Choose an output folder.",
+      "Click Copy selected and review the generated report.",
+    ],
+    cases: [
+      "Use it when someone asks for all packshots for one EAN or product group.",
+      "Use it to collect images from a OneDrive-synced library without accidentally downloading every file.",
+      "Use it when the source folder must stay unchanged.",
+    ],
+    notes: [
+      "Cloud-only OneDrive files may show placeholders if Windows has no cached thumbnail and online preview is unavailable.",
+      "Copy selected may trigger OneDrive to download the original selected files.",
+      "Keep output outside the source folder.",
+    ],
+  },
+  {
+    title: "EAN Sorter",
+    purpose: "Use EAN Sorter when files need to be grouped by detected barcode or EAN.",
+    features: [
+      "Scan image folders for barcode or EAN information.",
+      "Preview detected results before applying sort actions.",
+      "Group files by detected EAN or status.",
+      "Create reports that help review successful, missing, or uncertain detections.",
+      "Use the built-in Guide button in the tab for sorter-specific details.",
+    ],
+    steps: [
+      "Open EAN Sorter.",
+      "Choose the source folder.",
+      "Run the scan.",
+      "Review detected EANs, missing values, and uncertain items.",
+      "Apply the sort/copy workflow only after reviewing the preview.",
+      "Open the generated report if the team needs verification evidence.",
+    ],
+    cases: [
+      "Use it when images arrive unsorted and folder names must be based on EAN.",
+      "Use it when barcode visibility is good enough for detection.",
+      "Use it to separate detected and undetected files for manual follow-up.",
+    ],
+    notes: [
+      "Blurry, cropped, tiny, rotated, or partially hidden barcodes can reduce detection accuracy.",
+      "Review results before applying folder changes.",
+    ],
+  },
+  {
+    title: "EAN Renamer",
+    purpose: "Use EAN Renamer when selected images need structured category folders and predictable filenames.",
+    features: [
+      "Scan a source folder and place images into workflow columns.",
+      "Classify images into Packshot, Human, Normal Lifestyle, Artwork, and Duplicate groups.",
+      "Use folder-derived EANs or a Custom EAN.",
+      "Choose Copy mode or in-folder Rename mode.",
+      "Choose naming modes: per-category, continuous, prefixed, or EAN_ProductName behavior.",
+      "Set output folders per category.",
+      "Preview output names and conflicts before applying.",
+      "Undo recent operations when log data is available.",
+    ],
+    steps: [
+      "Open EAN Renamer.",
+      "Pick the source folder.",
+      "Drag images into the correct category columns.",
+      "Set output folders if using Copy mode.",
+      "Choose output mode and naming mode in settings.",
+      "Enter Custom EAN or Product Name only when the current workflow requires it.",
+      "Use 1st markers when specific images should become the first image in a category.",
+      "Click Preview and review every output path and status.",
+      "Apply Copy or Rename only after the preview is correct.",
+    ],
+    cases: [
+      "Use Copy mode when testing a new naming rule or protecting original files.",
+      "Use in-folder Rename only when the source folder is trusted and backed up.",
+      "Use Duplicate groups when multiple files represent the same shot, such as JPG and PNG versions.",
+      "Use Product Name naming only when filenames must include a specific product name.",
+    ],
+    notes: [
+      "Filename conflicts must be fixed before apply.",
+      "Undo depends on the operation log and may not work if files are manually moved or deleted after applying.",
+      "Preview is the most important step in this tab.",
+    ],
+  },
+  {
+    title: "Settings, Repair, and Diagnostics",
+    purpose: "Use the Settings and support scripts when the app behavior, theme, backend, or environment needs adjustment.",
+    features: [
+      "Settings controls app-level preferences exposed by the current build.",
+      "REPAIR_GRIMOIRE.bat is the first recovery step for broken dependencies or startup issues.",
+      "DIAGNOSE_GRIMOIRE.bat creates diagnostic output for support.",
+      "START_DESKTOP.bat starts the desktop experience; START_GRIMOIRE.bat can be used for browser/dev mode.",
+    ],
+    steps: [
+      "If a tab behaves unexpectedly, close and reopen the app first.",
+      "Run REPAIR_GRIMOIRE.bat if the backend or dependencies fail.",
+      "Run DIAGNOSE_GRIMOIRE.bat if repair does not solve the issue.",
+      "Send the diagnostics folder to support with a short description of the workflow that failed.",
+    ],
+    cases: [
+      "Use repair after moving the project folder, updating dependencies, or seeing backend startup errors.",
+      "Use diagnostics when a bug needs to be reproduced or escalated.",
+    ],
+    notes: [
+      "Do not delete backend storage or logs unless support asks for it.",
+      "Keep source files and output folders separate during troubleshooting.",
     ],
   },
 ];
@@ -1120,22 +1308,47 @@ function GuideView() {
       <section className="guide-hero">
         <div>
           <div className="credits-kicker">Guide</div>
-          <h1>Huong dan su dung GRIMOIRE</h1>
-          <p>Chon dung tab cho dung viec, preview truoc cac thao tac co rui ro, va giu source/output tach rieng de workflow on dinh.</p>
+          <h1>GRIMOIRE User Guide</h1>
+          <p>Use this guide to choose the right tab, understand each feature, follow safe workflows, and handle common product data or image cases.</p>
         </div>
       </section>
 
-      <div className="guide-grid">
-        {GUIDE_SECTIONS.map((section) => (
-          <section className="guide-panel" key={section.title}>
-            <h2>{section.title}</h2>
-            <div className="guide-list">
-              {section.items.map(([label, body]) => (
-                <article className="guide-item" key={label}>
-                  <strong>{label}</strong>
-                  <p>{body}</p>
-                </article>
-              ))}
+      <section className="guide-panel guide-overview">
+        <h2>Quick Tab Selection</h2>
+        <div className="guide-list">
+          {GUIDE_OVERVIEW.map(([label, body]) => (
+            <article className="guide-item" key={label}>
+              <strong>{label}</strong>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <div className="guide-tab-stack">
+        {GUIDE_TABS.map((tab) => (
+          <section className="guide-tab-panel" key={tab.title}>
+            <div className="guide-tab-head">
+              <h2>{tab.title}</h2>
+              <p>{tab.purpose}</p>
+            </div>
+            <div className="guide-columns">
+              <div>
+                <h3>Key Features</h3>
+                <ul>{tab.features.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+              <div>
+                <h3>How To Use</h3>
+                <ol>{tab.steps.map((item) => <li key={item}>{item}</li>)}</ol>
+              </div>
+              <div>
+                <h3>Common Cases</h3>
+                <ul>{tab.cases.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+              <div>
+                <h3>Notes</h3>
+                <ul>{tab.notes.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
             </div>
           </section>
         ))}

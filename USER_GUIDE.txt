@@ -1,10 +1,13 @@
 GRIMOIRE USER GUIDE
 ===================
 
-Muc dich
---------
-GRIMOIRE la bo cong cu lam viec voi product data va product images, gom cac module:
+Purpose
+-------
+GRIMOIRE is a local toolkit for product data and product image workflows.
+It combines data audit, image processing, image review, packshot browsing,
+barcode/EAN sorting, and EAN-based file naming in one desktop app.
 
+Main tabs:
 - Dashboard
 - Data QC
 - Image Edit
@@ -12,342 +15,310 @@ GRIMOIRE la bo cong cu lam viec voi product data va product images, gom cac modu
 - Packshot Browser
 - EAN Sorter
 - EAN Renamer
+- Guide
 - Settings
 
 
-Chon nhanh tab theo truong hop
-------------------------------
-- Can audit master data, missing data, duplicate, rule validation:
-  dung Data QC.
-- Can resize/crop/canvas/upscale/remove background anh hang loat:
-  dung Image Edit.
-- Can review folder anh va xoa anh loi/khong can:
-  dung Images Check.
-- Can tim packshot theo EAN/folder/filename, hover preview va copy anh:
-  dung Packshot Browser.
-- Can scan barcode/EAN tren anh va sort file vao folder:
-  dung EAN Sorter.
-- Can copy/rename anh product theo EAN va category:
-  dung EAN Renamer.
-- Can xem huong dan trong app:
-  dung tab Guide.
+Quick Tab Selection
+-------------------
+- Use Data QC when you need to audit a master data file, find missing data,
+  invalid formats, duplicates, or rule validation issues.
+- Use Image Edit when you need to batch resize, crop, canvas, upscale,
+  remove background, rename, or export product images.
+- Use Images Check when you need to visually review a folder tree and delete
+  rejected images after confirmation.
+- Use Packshot Browser when you need to search packshots by EAN, folder,
+  filename, or keyword, preview them, and copy selected files.
+- Use EAN Sorter when you need to scan barcodes/EANs and group images into
+  EAN or status folders.
+- Use EAN Renamer when you need to copy or rename product images by EAN,
+  category, duplicate group, product name, and naming rule.
+- Use Guide when users need in-app instructions.
 
 
-1. Mo ung dung
---------------
-Chay file:
+1. Starting the App
+-------------------
+Desktop mode:
 START_DESKTOP.bat
 
-Neu muon chay che do browser/dev:
+Browser/dev mode:
 START_GRIMOIRE.bat
+
+If the backend fails to start:
+1. Close the app.
+2. Run REPAIR_GRIMOIRE.bat.
+3. Start the app again.
+4. If the issue continues, run DIAGNOSE_GRIMOIRE.bat and send diagnostics to support.
 
 
 2. Dashboard
 ------------
-Dashboard la man hinh tong quan. Tu day co the mo nhanh cac tool:
+Purpose:
+- Start from a central overview screen.
+- Open each major tool quickly.
+- Use search to jump to tools or workflows.
+- Check build/version information.
 
-- Data Quality Control
-- Image Edit
-- Images Check
-- Packshot Browser
-- EAN Sorter
-- EAN Renamer
+How to use:
+1. Open GRIMOIRE.
+2. Use Dashboard cards or the sidebar to open a tool.
+3. Use the top search if you know the workflow keyword.
+
+Common cases:
+- A new user needs to find the right tool.
+- You want to confirm the current build version.
+- You want to return to a neutral starting point between workflows.
 
 
 3. Data QC
 ----------
-Muc dich:
-- Kiem tra file master data.
-- Phat hien loi thieu data, sai format, duplicate, hoac rule validation.
-- Tao report de review.
+Purpose:
+- Audit master data files.
+- Find missing required fields, invalid formats, duplicate records, and rule issues.
+- Generate reports for correction and team handoff.
 
-Quy trinh co ban:
-1. Mo tab Data QC.
-2. Upload/chon file master data.
-3. Chay audit.
-4. Xem ket qua loi.
-5. Export report neu can.
+Key features:
+- Excel/CSV input.
+- Rule-based audit.
+- Missing data detection.
+- Duplicate and validation checks.
+- Exportable audit report.
 
-Luu y:
-- File input nen la Excel/CSV dung format ma team dang dung.
-- Neu report bi loi doc file, kiem tra sheet name/header/format cell.
+How to use:
+1. Open Data QC.
+2. Select or upload the master data file.
+3. Choose audit options if shown.
+4. Run the audit.
+5. Review the summary and generated report.
+6. Correct the source data and run the audit again if needed.
+
+Use Data QC when:
+- A master file is rejected by another system.
+- A team needs a clear list of missing or invalid product fields.
+- You need evidence before asking another team to correct data.
+
+Notes:
+- If the file cannot be read, check sheet names, header rows, merged cells,
+  protected sheets, and whether the file is an original master file.
+- Keep generated reports separate from source input files.
 
 
 4. Image Edit
 -------------
-Muc dich:
-- Xu ly anh hang loat.
-- Remove background, upscale, canvas edit, export anh.
-- Luu custom dimension preset de dung lai lan sau.
-- Giu output preview/job gan day de user khong mat ket qua cu khi chay input moi.
+Purpose:
+- Batch process product images for marketplace, catalog, or internal use.
 
-Quy trinh co ban:
-1. Mo tab Image Edit.
-2. Chon/upload anh.
-3. Chon Dimension Preset hoac nhap Width/Height rieng.
-4. Neu muon dung lai kich thuoc nay, bam Save o Dimension Preset va dat ten preset.
-5. Chon workflow can xu ly.
-6. Bam Preview (First 1) de xem truoc.
-7. Neu dung, bam Start Processing.
-8. Xem Outputs o cot phai de chon lai preview/job gan day va download job output.
+Key features:
+- Add individual image files or select an input folder.
+- Built-in dimension presets.
+- Saved custom dimension presets that remain available next time the app opens.
+- Width, height, aspect lock, fit mode, margin, DPI, layout preset, and canvas background.
+- Image filters: remove whitespace, auto product fill, safe padding,
+  white background checks, reject people/hands, remove shadow, and remove background.
+- Standard upscale and Real-ESRGAN upscale when local tools are available.
+- Output format, quality, max file size, naming rule, local folder output, and ZIP output.
+- Outputs panel that keeps recent previews and completed jobs instead of replacing old output.
 
-Luu y:
-- Anh lon se ton nhieu RAM va thoi gian xu ly.
-- Mot so tinh nang AI can model/dependency day du trong backend.
-- Custom preset duoc luu tren may user, lan sau mo app van hien trong dropdown.
-- Neu dung output folder local, moi lan chay se tao folder rieng theo timestamp/job id de tranh ghi de output cu.
+How to use:
+1. Open Image Edit.
+2. Add image files or choose an input folder.
+3. Select a dimension preset or enter Width and Height manually.
+4. Click Save beside Dimension Preset to store a custom preset for future sessions.
+5. Configure fit mode, layout, canvas, upscale, filters, output format, and naming.
+6. Click Preview (First 1) to test one image.
+7. Adjust settings if the preview is not correct.
+8. Click Start Processing.
+9. Use the Outputs panel to switch between recent previews and completed jobs.
+10. Download the selected completed job when needed.
+
+Use Image Edit when:
+- All images must become 1000x1000, 1500x1500, Amazon main size, or a custom size.
+- Product images have too much whitespace.
+- A batch needs consistent canvas/background/output format.
+- You need to export the same batch with strict naming rules.
+
+Notes:
+- Large images and AI upscale may take more RAM and time.
+- Always preview before processing a large batch.
+- Keep the output folder outside the input folder.
+- Local folder output is written into a timestamped job folder to avoid overwriting old output.
 
 
 5. Images Check
 ---------------
-Muc dich:
-- Scan folder anh.
-- Xem nhanh anh theo folder.
-- Mark anh can xoa va xoa sau khi confirm.
+Purpose:
+- Visually review image folders.
+- Mark bad images.
+- Delete selected rejected files only after confirmation.
 
-Luu y:
-- Images Check phu hop de review/clean folder.
-- Neu chi muon tim, preview, chon va copy packshot, dung Packshot Browser.
+Key features:
+- Folder scan.
+- Slideshow and gallery review modes.
+- Search/filter by image name, folder, or path.
+- Mark for deletion.
+- Confirmed deletion summary.
+
+How to use:
+1. Open Images Check.
+2. Choose the folder to review.
+3. Click Scan all.
+4. Use slideshow mode for focused review or gallery mode for faster comparison.
+5. Mark rejected images.
+6. Review the Delete count.
+7. Click Save deletion when you are sure.
+
+Use Images Check when:
+- A folder contains blurry, duplicated, wrong, or irrelevant images.
+- You need to clean an output folder after Image Edit.
+- You want a visual QA pass before files are shared.
+
+Notes:
+- Deletion is permanent after confirmation.
+- If the goal is only to find and copy good packshots, use Packshot Browser instead.
 
 
 6. Packshot Browser
 -------------------
-Muc dich:
-- Browse folder packshot da sync ve may ma khong can file Excel.
-- Search theo EAN, folder, ten file, brand/keyword trong filename.
-- Hover vao anh de xem preview lon va thong tin file.
-- Chon anh can lay va copy sang output folder.
+Purpose:
+- Search, preview, select, and copy existing packshot files without changing the source folder.
 
-Quy trinh co ban:
-1. Mo tab Packshot Browser.
-2. Bam Choose de chon source folder.
-3. Bam Scan.
-4. Dung sidebar group/folder hoac search de loc anh.
-5. Hover vao thumbnail de xem preview va filename chi tiet.
-6. Tick anh can copy.
-7. Chon output folder.
-8. Bam Copy selected.
+Key features:
+- Scan local or synced packshot folders.
+- Search by EAN, filename, folder, extension, and keywords.
+- Browse folder/group structure.
+- Hover preview with metadata.
+- Select and copy files to an output folder.
+- Generate a CSV report.
+- Handle OneDrive cloud-only files carefully.
 
-Output:
-- Anh duoc copy sang output folder.
-- App tao packshot_browser_report.csv trong output folder.
+How to use:
+1. Open Packshot Browser.
+2. Choose the source packshot folder.
+3. Click Scan.
+4. Use search or folder/group filters.
+5. Hover thumbnails to inspect images.
+6. Select the files to collect.
+7. Choose an output folder.
+8. Click Copy selected.
+9. Review the copied files and CSV report.
 
-OneDrive:
-- Folder OneDrive da sync co the scan duoc.
-- File cloud-only se hien trang thai Cloud.
-- App uu tien dung Windows cached thumbnail cho file Cloud, giong thumbnail trong File Explorer.
-- Neu Windows chua co cached thumbnail, app thu SharePoint online thumbnail neu da co token dang nhap.
-- Neu ca Windows cache va SharePoint thumbnail deu khong co, app hien Cloud placeholder thay vi doc file goc.
-- App khong tu tao thumbnail/preview tu file Cloud de tranh OneDrive tu download full file.
-- File Cloud chi bi download khi user chon anh do va bam Copy selected.
-- Khi Copy selected, OneDrive can internet va OneDrive phai dang chay.
+Use Packshot Browser when:
+- You need all packshots for one EAN or group of EANs.
+- The source folder must stay unchanged.
+- The folder is OneDrive synced and you want to avoid downloading every file.
+
+OneDrive notes:
+- Cloud-only files may show a cloud placeholder if no cached thumbnail is available.
+- Copy selected may trigger OneDrive to download the selected original files.
+- Keep OneDrive running and connected to the internet.
 
 
 7. EAN Sorter
 -------------
-Muc dich:
-- Scan folder anh.
-- Detect barcode/EAN.
-- Sort file vao folder theo EAN.
+Purpose:
+- Detect barcodes/EANs from images and sort or group files by EAN/status.
 
-Quy trinh co ban:
-1. Mo tab EAN Sorter.
-2. Pick folder can scan.
-3. Chay scan.
-4. Review ket qua EAN/barcode.
-5. Ap dung sort/copy tuy theo workflow.
+Key features:
+- Folder scan.
+- Barcode/EAN detection.
+- Preview of detected results.
+- Grouping or sorting workflow.
+- Report output for detected, missing, and uncertain results.
+- Built-in sorter-specific Guide button.
 
-Luu y:
-- Neu barcode trung nhau, app co the yeu cau user chon cach xu ly duplicate.
-- Anh mo, nho, bi crop barcode co the scan khong chinh xac.
+How to use:
+1. Open EAN Sorter.
+2. Choose the source folder.
+3. Run the scan.
+4. Review detected EANs and missing/uncertain items.
+5. Apply the sort/copy workflow only after review.
+6. Open the generated report if verification is needed.
+
+Use EAN Sorter when:
+- Images arrive unsorted and must be grouped by EAN.
+- Barcode visibility is good enough for detection.
+- Missing barcode files need to be separated for manual follow-up.
+
+Notes:
+- Blurry, cropped, tiny, rotated, or partially hidden barcodes can reduce accuracy.
+- Review results before applying folder changes.
 
 
 8. EAN Renamer
 --------------
-Muc dich:
-- Doi ten/copy anh product theo EAN va category.
-- Ho tro drag-and-drop anh vao cac cot Packshot, Human, Normal Lifestyle, Artwork, Duplicate.
+Purpose:
+- Copy or rename product images into structured category output with predictable filenames.
+
+Key features:
+- Source folder scan.
+- Drag-and-drop image categorization.
+- Categories: Packshot, Human, Normal Lifestyle, Artwork, Duplicate.
+- Folder-derived EAN or Custom EAN.
+- Copy mode or in-folder Rename mode.
+- Naming modes: per-category, continuous, prefixed, and EAN_ProductName workflows.
+- Per-category output folders.
+- Preview table with output paths and status.
+- Undo for recent operations when logs are available.
+
+How to use:
+1. Open EAN Renamer.
+2. Pick the source folder.
+3. Drag images into the correct category columns.
+4. Set output folders if using Copy mode.
+5. Choose output mode and naming mode in settings.
+6. Enter Custom EAN or Product Name only when required.
+7. Use 1st markers when a specific image should become the first image in a category.
+8. Click Preview.
+9. Review every output path, filename, and status.
+10. Apply Copy or Rename only after the preview is correct.
+
+Use Copy mode when:
+- You are testing a new naming rule.
+- Source files must remain unchanged.
+- The workflow is still being reviewed.
+
+Use in-folder Rename mode when:
+- The source folder is trusted.
+- You have backup or the output has already been previewed.
+- The team wants filenames changed in place.
+
+Duplicate group use:
+- Put multiple files representing the same shot into Duplicate.
+- Example: the same packshot as JPG and PNG can share the same slot number.
+- If two files would create the same filename and extension, Preview will show a conflict.
+
+Notes:
+- Preview is the most important step in EAN Renamer.
+- Fix conflicts before Apply.
+- Undo depends on operation logs and may fail if files are moved or deleted manually after Apply.
 
 
-8.1 Chon folder
----------------
-1. Mo tab EAN Renamer.
-2. Bam Pick Folder.
-3. Chon folder source.
+9. Settings, Repair, and Diagnostics
+------------------------------------
+Purpose:
+- Adjust app-level preferences.
+- Recover from startup or dependency problems.
+- Generate support diagnostics.
 
-App se scan:
-- Anh nam truc tiep trong root folder.
-- Anh nam trong folder con.
+How to use:
+1. Use Settings for preferences exposed in the current build.
+2. If the app behaves unexpectedly, close and reopen it.
+3. Run REPAIR_GRIMOIRE.bat if backend or dependency issues appear.
+4. Run DIAGNOSE_GRIMOIRE.bat if repair does not solve the issue.
+5. Send diagnostics to support with a short explanation of what failed.
 
-Neu anh nam trong folder con, ten folder con duoc xem la EAN cua anh do.
-
-
-8.2 Cac cot chinh
------------------
-Unsorted:
-- Anh moi scan vao se nam o day.
-
-Packshot:
-- Anh packshot/product main image.
-
-Lifestyle/Human:
-- Anh lifestyle co nguoi/model.
-
-Lifestyle/Normal:
-- Anh lifestyle khong phai human/model.
-
-Artwork:
-- Artwork, label, design asset.
-
-Duplicate:
-- Dung de gom cac anh duplicate/variant ma user tu xac nhan.
-- Vi du cung mot shot nhung khac file type: .jpg va .png.
+Notes:
+- Do not delete backend storage or logs unless support asks for it.
+- Keep source and output folders separate during troubleshooting.
 
 
-8.3 Output folders
-------------------
-Output bar co cac folder rieng:
-
-- Packshot
-- Human
-- Normal Lifestyle
-- Artwork
-
-Khi chay Copy mode, output duoc chia theo category.
-
-
-8.4 Action mode
----------------
-Trong Settings:
-
-Copy:
-- Copy file sang output folder.
-- Khong doi file source.
-
-In-folder rename:
-- Doi ten ngay trong folder source.
-- Nen dung can than hon va nen Preview truoc.
-
-
-8.5 Naming mode
----------------
-Per category:
-- Danh so rieng theo tung EAN + category.
-- Neu chi co 1 anh trong category va khong bat 1st: ten co the la {EAN}.ext.
-- Neu co nhieu anh: {EAN}_1.ext, {EAN}_2.ext.
-
-Continuous:
-- Danh so lien tuc theo EAN qua cac category.
-- Vi du: {EAN}_1.jpg, {EAN}_2.jpg, {EAN}_3.jpg.
-
-Prefixed:
-- Dung prefix category trong ten file.
-- Format:
-  {EAN}_{PREFIX}_{number}.{extension}
-
-Prefix mac dinh:
-- Packshot: Pack_shot
-- Human: Human
-- Normal Lifestyle: Normal_Lifestyle
-- Artwork: Artwork
-
-Vi du:
-8809864754188_Pack_shot_1.jpg
-8809864754188_Human_1.jpg
-8809864754188_Normal_Lifestyle_1.jpg
-8809864754188_Artwork_1.jpg
-
-
-8.6 Custom EAN
+Best Practices
 --------------
-Neu nhap Custom EAN:
-- App dung Custom EAN thay cho EAN detect tu folder.
-- Ap dung cho cac file duoc process trong lan do.
-
-
-8.7 Product Name
-----------------
-Product Name khong tu dong ep naming mode nua.
-
-Neu chi nhap Product Name va khong tick EAN_ProductName:
-- Naming mode van chay theo setting user chon.
-- Neu dang chon Prefixed, output van la prefix:
-  {EAN}_Pack_shot_1.jpg
-
-Neu tick checkbox EAN_ProductName:
-- App dung naming continuous theo product name:
-  {EAN}_{PRODUCT_NAME}_{number}.ext
-
-Vi du:
-8809864754188_MY_PRODUCT_1.jpg
-8809864754188_MY_PRODUCT_2.jpg
-
-
-8.8 Quy tac 1st
----------------
-Checkbox 1st o cac cot:
-- Cho phep user danh dau anh se duoc uu tien lam anh so 1.
-
-Voi Prefixed mode + Duplicate:
-- Neu user keo cac anh duplicate vao Duplicate > PACK SHOT va bat 1st,
-  app xem cac file do la cung mot shot so 1.
-
-Vi du:
-8809864754188_Pack_shot_1.jpg
-8809864754188_Pack_shot_1.png
-
-Tuong tu voi Human:
-8809864754188_Human_1.jpg
-8809864754188_Human_1.png
-
-Luu y:
-- Neu trong cung mot duplicate group co 2 file cung extension cung muon thanh _1.jpg,
-  Windows se bi trung ten. App se bao conflict.
-
-
-8.9 Preview va Apply
---------------------
-Nen bam Preview truoc khi Apply.
-
-Preview se hien:
-- Current Name
-- Output Path
-- Status
-
-Neu thay dung:
-- Bam Copy hoac Rename.
-
-Neu sai:
-- Keo lai anh vao cot dung.
-- Sua naming mode/output/custom EAN.
-- Preview lai.
-
-
-8.10 Undo
----------
-Sau khi Apply, neu app co log undo:
-- Bam Undo de revert thao tac gan nhat.
-
-Luu y:
-- Undo phu thuoc vao log trong .ean-renamer\logs.
-- Neu file da bi user di chuyen/xoa sau khi rename, Undo co the khong khop.
-
-
-9. Khi gap loi
---------------
-Thu tu xu ly:
-
-1. Dong app va mo lai.
-2. Chay REPAIR_GRIMOIRE.bat.
-3. Chay DIAGNOSE_GRIMOIRE.bat.
-4. Gui file report trong folder diagnostics cho nguoi support.
-
-
-10. Best practices
------------------
-- Luon Preview truoc khi Rename in-folder.
-- Nen dung Copy mode khi test rule moi.
-- Nen giu source folder rieng va output folder rieng.
-- Khi dung Packshot Browser, nen dat output folder ngoai source folder.
-- Nen dat anh duplicate khac file type vao Duplicate column de app giu cung slot number.
-- Nen tranh dat output folder trung source folder.
+- Preview before any workflow that renames, deletes, or heavily transforms files.
+- Use Copy mode before in-folder Rename mode.
+- Keep source folders and output folders separate.
+- Scan again after files are changed outside the app.
+- Use Image Edit custom presets for repeated marketplace sizes.
+- Use Packshot Browser for safe searching and copying.
+- Use Images Check only when deletion is actually required.
+- Use diagnostics when a bug needs to be reproduced or escalated.
