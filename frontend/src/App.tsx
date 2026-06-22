@@ -112,6 +112,18 @@ function IconCredits() {
   );
 }
 
+function IconGuide() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+      <path d="M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z" />
+      <path d="M8 7h8" />
+      <path d="M8 11h6" />
+      <path d="M8 15h5" />
+    </svg>
+  );
+}
+
 function IconSettings() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -224,7 +236,8 @@ const SHORTCUTS: Record<string, string> = {
   "/packshot-browser": "5",
   "/ean-sorter": "6",
   "/ean-renamer": "7",
-  "/credits": "8",
+  "/guide": "8",
+  "/credits": "9",
 };
 
 /* â”€â”€â”€ Sidebar â”€â”€â”€ */
@@ -237,6 +250,7 @@ const NAV_ITEMS = [
   { to: "/packshot-browser", label: "Packshot Browser", icon: IconPackshotBrowser, img: "/icons/ean-sorter-gallery.png", mono: false },
   { to: "/ean-sorter", label: "EAN Sorter", icon: IconEANSorter, img: "/icons/ean-sorter.png", mono: true },
   { to: "/ean-renamer", label: "EAN Renamer", icon: IconEANRenamer, img: "/icons/ean-renamer.png", mono: false },
+  { to: "/guide", label: "Guide", icon: IconGuide, img: null, mono: false },
   { to: "/credits", label: "Credits", icon: IconCredits, img: null, mono: false },
 ];
 
@@ -313,6 +327,7 @@ const ROUTE_NAMES: Record<string, string> = {
   "/packshot-browser": "Packshot Browser",
   "/ean-sorter": "EAN Sorter",
   "/ean-renamer": "EAN Renamer",
+  "/guide": "Guide",
   "/credits": "Credits",
 };
 
@@ -424,7 +439,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.19.0";
+const APP_VERSION = "2026.06.22.0";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
@@ -434,6 +449,7 @@ const COMMANDS: CommandItem[] = [
   { to: "/packshot-browser", title: "Packshot Browser", desc: "Browse synced packshot folders, hover preview, select, copy, and export reports", keywords: ["packshot", "browser", "finder", "preview", "hover", "onedrive", "copy", "ean"] },
   { to: "/ean-sorter", title: "EAN Sorter", desc: "Scan EANs and sort files into folders", keywords: ["ean", "sort", "sorter", "barcode", "folder", "status"] },
   { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images by EAN", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name"] },
+  { to: "/guide", title: "Guide", desc: "When to use each tab and how to handle common cases", keywords: ["guide", "help", "how", "workflow", "tab", "case", "huong dan"] },
   { to: "/credits", title: "Credits", desc: "MDX team credits", keywords: ["credits", "team", "about"] },
 ];
 
@@ -1062,6 +1078,72 @@ function Dashboard() {
   );
 }
 
+/* Guide */
+
+const GUIDE_SECTIONS = [
+  {
+    title: "Chon tab theo viec can lam",
+    items: [
+      ["Data QC", "Dung khi can audit file master data, tim missing data, sai format, duplicate, rule validation, roi xuat report de review."],
+      ["Image Edit", "Dung khi can resize/crop/canvas/upscale/remove background hang loat. Neu can giu preset kich thuoc rieng, luu Custom Preset trong tab nay."],
+      ["Images Check", "Dung khi can scan ca folder anh, xem nhanh anh tot/xau, danh dau va xoa file khong dat."],
+      ["Packshot Browser", "Dung khi can tim packshot theo EAN/folder/filename, hover preview, chon anh va copy sang output folder ma khong can Excel."],
+      ["EAN Sorter", "Dung khi can scan barcode/EAN tren anh va sort/copy file vao folder theo EAN/status."],
+      ["EAN Renamer", "Dung khi can copy hoac rename anh product theo EAN, category Packshot/Human/Normal Lifestyle/Artwork va rule naming."],
+    ],
+  },
+  {
+    title: "Quy trinh an toan nen dung",
+    items: [
+      ["Preview truoc", "Voi Image Edit va EAN Renamer, hay preview truoc khi start/apply de thay output, ten file va conflict."],
+      ["Copy truoc Rename", "Khi test rule moi, dung Copy mode truoc. Chi dung in-folder rename khi da chac rule dung va source da backup."],
+      ["Tach source/output", "Dat output folder khac source folder. Image Edit se tao output theo tung lan chay de tranh ghi de ket qua cu."],
+      ["Scan lai khi folder doi", "Neu user them/xoa/doi ten file ngoai app, scan lai tab dang dung truoc khi apply thao tac tiep theo."],
+    ],
+  },
+  {
+    title: "Khi gap truong hop thuong gap",
+    items: [
+      ["Can chuan hoa size anh marketplace", "Vao Image Edit, chon preset kich thuoc, Preview First 1, neu dung thi Start Processing. Bam Save de luu preset rieng cho lan sau."],
+      ["Can loc nhanh anh loi trong folder lon", "Vao Images Check, chon folder cha, Scan all, review theo slideshow/gallery, mark Delete roi Save deletion."],
+      ["Can lay packshot tu OneDrive", "Vao Packshot Browser, scan folder synced. Cloud-only file se uu tien thumbnail cache; copy selected moi yeu cau OneDrive tai file goc."],
+      ["Barcode scan sai hoac thieu", "Vao EAN Sorter, review report/preview. Anh mo, barcode nho, bi crop hoac nghieng co the can crop lai hoac scan lai voi anh tot hon."],
+      ["Ten output bi trung", "Trong EAN Renamer, xem Preview status. Neu conflict, doi naming mode, category, duplicate group, custom EAN hoac output folder roi preview lai."],
+      ["App bao loi backend/file", "Dong app mo lai, chay REPAIR_GRIMOIRE.bat, neu van loi chay DIAGNOSE_GRIMOIRE.bat va gui folder diagnostics cho support."],
+    ],
+  },
+];
+
+function GuideView() {
+  return (
+    <div className="view guide-view">
+      <section className="guide-hero">
+        <div>
+          <div className="credits-kicker">Guide</div>
+          <h1>Huong dan su dung GRIMOIRE</h1>
+          <p>Chon dung tab cho dung viec, preview truoc cac thao tac co rui ro, va giu source/output tach rieng de workflow on dinh.</p>
+        </div>
+      </section>
+
+      <div className="guide-grid">
+        {GUIDE_SECTIONS.map((section) => (
+          <section className="guide-panel" key={section.title}>
+            <h2>{section.title}</h2>
+            <div className="guide-list">
+              {section.items.map(([label, body]) => (
+                <article className="guide-item" key={label}>
+                  <strong>{label}</strong>
+                  <p>{body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* Credits */
 
 const CREDIT_ITEMS = [
@@ -1156,7 +1238,7 @@ function AppShell() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const routes = ["/", "/data-qc", "/image-edit", "/images-check", "/packshot-browser", "/ean-sorter", "/ean-renamer", "/credits"];
+        const routes = ["/", "/data-qc", "/image-edit", "/images-check", "/packshot-browser", "/ean-sorter", "/ean-renamer", "/guide", "/credits"];
         const idx = parseInt(e.key) - 1;
         if (idx >= 0 && idx < routes.length) {
           e.preventDefault();
@@ -1215,6 +1297,7 @@ function AppShell() {
               <RealEanRenamerView />
             }
           />
+          <Route path="/guide" element={<GuideView />} />
           <Route path="/credits" element={<CreditsView />} />
           <Route path="*" element={<CommandHome />} />
         </Routes>

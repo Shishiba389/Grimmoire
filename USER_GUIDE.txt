@@ -15,6 +15,24 @@ GRIMOIRE la bo cong cu lam viec voi product data va product images, gom cac modu
 - Settings
 
 
+Chon nhanh tab theo truong hop
+------------------------------
+- Can audit master data, missing data, duplicate, rule validation:
+  dung Data QC.
+- Can resize/crop/canvas/upscale/remove background anh hang loat:
+  dung Image Edit.
+- Can review folder anh va xoa anh loi/khong can:
+  dung Images Check.
+- Can tim packshot theo EAN/folder/filename, hover preview va copy anh:
+  dung Packshot Browser.
+- Can scan barcode/EAN tren anh va sort file vao folder:
+  dung EAN Sorter.
+- Can copy/rename anh product theo EAN va category:
+  dung EAN Renamer.
+- Can xem huong dan trong app:
+  dung tab Guide.
+
+
 1. Mo ung dung
 --------------
 Chay file:
@@ -60,17 +78,24 @@ Luu y:
 Muc dich:
 - Xu ly anh hang loat.
 - Remove background, upscale, canvas edit, export anh.
+- Luu custom dimension preset de dung lai lan sau.
+- Giu output preview/job gan day de user khong mat ket qua cu khi chay input moi.
 
 Quy trinh co ban:
 1. Mo tab Image Edit.
 2. Chon/upload anh.
-3. Chon workflow can xu ly.
-4. Preview ket qua.
-5. Export file output.
+3. Chon Dimension Preset hoac nhap Width/Height rieng.
+4. Neu muon dung lai kich thuoc nay, bam Save o Dimension Preset va dat ten preset.
+5. Chon workflow can xu ly.
+6. Bam Preview (First 1) de xem truoc.
+7. Neu dung, bam Start Processing.
+8. Xem Outputs o cot phai de chon lai preview/job gan day va download job output.
 
 Luu y:
 - Anh lon se ton nhieu RAM va thoi gian xu ly.
 - Mot so tinh nang AI can model/dependency day du trong backend.
+- Custom preset duoc luu tren may user, lan sau mo app van hien trong dropdown.
+- Neu dung output folder local, moi lan chay se tao folder rieng theo timestamp/job id de tranh ghi de output cu.
 
 
 5. Images Check
