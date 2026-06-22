@@ -439,7 +439,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.22.1";
+const APP_VERSION = "2026.06.22.2";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
@@ -759,6 +759,39 @@ const BANNERS = [
 
 const CHANGELOG_ENTRIES = [
   {
+    version: "2026.06.22.2",
+    date: "2026-06-22",
+    title: "Guide details and banner readability",
+    type: "Guide + Interface",
+    changes: [
+      "Expanded the Guide tab in English with detailed purpose, key features, step-by-step usage, common cases, and notes for each tool tab.",
+      "Updated USER_GUIDE.txt so the external guide matches the in-app English documentation.",
+      "Improved dashboard banner text contrast with a dedicated readable overlay treatment across dark and light themes.",
+    ],
+  },
+  {
+    version: "2026.06.22.1",
+    date: "2026-06-22",
+    title: "English in-app guide",
+    type: "Guide",
+    changes: [
+      "Added a Guide tab to the sidebar and command search.",
+      "Documented when to use each GRIMOIRE tab, safe workflow habits, and common support steps.",
+      "Refreshed the desktop build with the new guide route and updated build version.",
+    ],
+  },
+  {
+    version: "2026.06.22.0",
+    date: "2026-06-22",
+    title: "Persistent Image Edit presets and output history",
+    type: "Image Edit",
+    changes: [
+      "Custom Image Edit dimension presets can now be saved and reused after reopening the app.",
+      "Preview and completed job outputs now stay visible in the Outputs panel instead of replacing the previous result.",
+      "Local folder output now writes each Image Edit folder job into a timestamped run folder to avoid overwriting older output.",
+    ],
+  },
+  {
     version: "2026.06.19.0",
     date: "2026-06-19",
     title: "Packshot Browser tab",
@@ -958,9 +991,9 @@ function Dashboard() {
             position: "absolute", inset: 0,
             background: "linear-gradient(135deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.3) 100%)",
           }} />
-          <div className="hero-content" style={{ position: "relative", zIndex: 2 }}>
-            <h1 style={{ fontSize: "1.7rem", marginBottom: 8, textShadow: "0 2px 8px rgba(0,0,0,0.7), 0 0 2px rgba(0,0,0,0.5)", color: "#fff", fontWeight: 800 }}>{banner.title}</h1>
-            <p style={{ fontSize: "0.95rem", maxWidth: 420, lineHeight: 1.55, textShadow: "0 1px 6px rgba(0,0,0,0.6)", color: "rgba(255,255,255,0.95)" }}>{banner.desc}</p>
+          <div className="hero-content dashboard-banner-copy" style={{ position: "relative", zIndex: 2 }}>
+            <h1>{banner.title}</h1>
+            <p>{banner.desc}</p>
             <button
               className="hero-btn"
               style={{ marginTop: 14 }}
