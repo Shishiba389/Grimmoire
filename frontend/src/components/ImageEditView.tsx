@@ -96,8 +96,8 @@ const MAX_OUTPUT_HISTORY = 12;
 const DEFAULTS = {
   inputFolder: "",
   outputFolder: "",
-  includeSubfolders: false,
-  preserveStructure: false,
+  includeSubfolders: true,
+  preserveStructure: true,
   outputMode: "zip" as OutputMode,
   preset: "Custom",
   width: 1000,
@@ -416,7 +416,19 @@ export function ImageEditView() {
     if (!fileList) return;
     const newFiles = Array.from(fileList);
     setFiles((prev) => [...prev, ...newFiles]);
+    setInputFolder("");
     addLog("INFO", `Added ${newFiles.length} file(s)`);
+  }
+
+  async function chooseInputFolder() {
+    const selected = await pickFolder("Select image input folder", inputFolder);
+    if (!selected) return;
+    setInputFolder(selected);
+    setFiles([]);
+    setQueue([]);
+    setIncludeSubfolders(true);
+    setPreserveStructure(true);
+    addLog("INFO", `Selected input folder: ${selected}`);
   }
 
   function removeQueueItem(id: string) {
@@ -618,6 +630,15 @@ export function ImageEditView() {
         status: "pending",
       }));
       if (items.length > 0) setQueue(items);
+      if (items.length === 0 && inputFolder) {
+        setQueue([{
+          id: `${created.id}-folder`,
+          name: inputFolder,
+          dimensions: includeSubfolders ? "Scanning subfolders" : "Scanning folder",
+          progress: 0,
+          status: "pending",
+        }]);
+      }
 
       addLog("SUCCESS", `Job started: ${created.id}`);
       notify("Image edit job started", { type: "info", message: created.id });
@@ -631,6 +652,10 @@ export function ImageEditView() {
 
   /* ── Derived state ── */
   const sourceCount = files.length;
+  const hasFolderSource = files.length === 0 && inputFolder.length > 0;
+  const sourceLabel = hasFolderSource
+    ? `Folder selected${includeSubfolders ? " (including subfolders)" : ""}`
+    : `${sourceCount} file${sourceCount !== 1 ? "s" : ""} selected`;
   const canStart = files.length > 0 || inputFolder.length > 0;
   const showAiExpandPrompt = layoutPreset === "ai_canvas_expand" || canvasBg === "ai_expand";
   const warningText = CANVAS_BG_WARNINGS[canvasBg] || LAYOUT_WARNINGS[layoutPreset] || "";
@@ -698,7 +723,7 @@ export function ImageEditView() {
           <Field label="Input folder">
             <div className="path-picker">
               <input value={inputFolder} onChange={(e) => setInputFolder(e.target.value)} placeholder="Path to image folder" />
-              <button className="btn btn-secondary btn-sm" onClick={async () => setInputFolder(await pickFolder("Select image input folder", inputFolder))}>Browse</button>
+              <button className="btn btn-secondary btn-sm" onClick={chooseInputFolder}>Browse</button>
             </div>
           </Field>
 
@@ -717,7 +742,7 @@ export function ImageEditView() {
 
           <div className="ie-source-card">
             <strong>Source</strong>
-            <span>{sourceCount} file{sourceCount !== 1 ? "s" : ""} selected</span>
+            <span>{sourceLabel}</span>
             {files.length > 0 && (
               <div className="ie-file-list">
                 {files.slice(0, 8).map((f, i) => (
@@ -727,6 +752,14 @@ export function ImageEditView() {
                   </div>
                 ))}
                 {files.length > 8 && <span className="muted">+{files.length - 8} more</span>}
+              </div>
+            )}
+            {hasFolderSource && (
+              <div className="ie-file-list">
+                <div className="ie-file-tag">
+                  <span title={inputFolder}>{inputFolder}</span>
+                  <button onClick={() => setInputFolder("")}>x</button>
+                </div>
               </div>
             )}
           </div>

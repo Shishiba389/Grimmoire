@@ -402,7 +402,6 @@ def process_sharp_batch_records(
         capture_output=True,
         text=True,
         cwd=Path(__file__).resolve().parents[2],
-        timeout=max(300, len(items) * 30),
     )
     if result.returncode != 0:
         message = (result.stderr or result.stdout or "Sharp batch failed").strip()
