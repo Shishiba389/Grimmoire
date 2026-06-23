@@ -236,8 +236,8 @@ const SHORTCUTS: Record<string, string> = {
   "/packshot-browser": "5",
   "/ean-sorter": "6",
   "/ean-renamer": "7",
-  "/guide": "8",
-  "/credits": "9",
+  "/guide": "9",
+  "/credits": "0",
 };
 
 /* â”€â”€â”€ Sidebar â”€â”€â”€ */
@@ -1521,11 +1521,10 @@ function AppShell() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const routes = ["/", "/data-qc", "/image-edit", "/images-check", "/packshot-browser", "/ean-sorter", "/ean-renamer", "/guide", "/credits"];
-        const idx = parseInt(e.key) - 1;
-        if (idx >= 0 && idx < routes.length) {
+        const target = Object.entries(SHORTCUTS).find(([, key]) => key === e.key)?.[0];
+        if (target) {
           e.preventDefault();
-          navigate(routes[idx]);
+          navigate(target);
         }
       }
     };
