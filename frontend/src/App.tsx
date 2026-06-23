@@ -759,6 +759,17 @@ const BANNERS = [
 
 const CHANGELOG_ENTRIES = [
   {
+    version: "2026.06.23.0",
+    date: "2026-06-23",
+    title: "EAN Renamer drag grouping and dynamic outputs",
+    type: "EAN Renamer",
+    changes: [
+      "Dragging an image no longer moves unrelated checked images; groups are formed by dragging across cards in the same source column.",
+      "The rename preview panel is now a floating pop-up that can be shown or hidden without shrinking the board.",
+      "Added categories now automatically get matching output slots and Duplicate boxes using the same naming rules as existing columns.",
+    ],
+  },
+  {
     version: "2026.06.22.3",
     date: "2026-06-22",
     title: "Packshot folder and thumbnail hotfix",
