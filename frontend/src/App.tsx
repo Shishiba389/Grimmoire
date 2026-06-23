@@ -439,7 +439,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.22.3";
+const APP_VERSION = "2026.06.23.3";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
@@ -758,6 +758,17 @@ const BANNERS = [
 ];
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: "2026.06.23.3",
+    date: "2026-06-23",
+    title: "EAN Renamer Bulk folder queue",
+    type: "EAN Renamer",
+    changes: [
+      "Bulk Working now acts as a folder queue: scan the root folder, pick one folder batch, then classify images in Single Folder mode.",
+      "Bulk cards keep optional Custom EAN/Product Name values and prefill Single Folder when opening a batch.",
+      "Completed batches are marked Done and the Single Folder view now offers Back to Bulk and Next Batch controls.",
+    ],
+  },
   {
     version: "2026.06.23.2",
     date: "2026-06-23",

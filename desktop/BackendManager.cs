@@ -148,6 +148,12 @@ public sealed class BackendManager
     {
         if (backendDir == null) return null;
 
+        // Installer build bundles a portable Python runtime here. Prefer it over
+        // a virtual environment because Windows venvs retain the build-machine
+        // Python path in pyvenv.cfg and are not safely portable.
+        var bundledPython = Path.Combine(backendDir, "python", "python.exe");
+        if (File.Exists(bundledPython)) return bundledPython;
+
         // Check venv first
         var venvPython = Path.Combine(backendDir, ".venv", "Scripts", "python.exe");
         if (File.Exists(venvPython)) return venvPython;

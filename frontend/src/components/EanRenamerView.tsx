@@ -49,6 +49,7 @@ type BulkWorkItem = BulkFolderItem & {
   ean: string;
   productName: string;
   matchSource: "manual" | "folder" | "file" | "master" | "missing";
+  status: "pending" | "active" | "done" | "skipped";
 };
 
 type KanbanColumn = {
@@ -199,20 +200,6 @@ function normalizeLookup(value: string): string {
   return value.toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function inferBulkCategory(image: RenImage): { category: string; categoryName: string } {
-  const label = `${image.relativePath} ${image.name}`.toLowerCase();
-  if (label.includes("artwork") || label.includes("art work") || label.includes("label")) {
-    return { category: "artwork", categoryName: "Artwork" };
-  }
-  if (label.includes("human") || label.includes("model") || label.includes("people") || label.includes("face")) {
-    return { category: "lifestyle_human", categoryName: "Lifestyle/Human" };
-  }
-  if (label.includes("lifestyle") || label.includes("normal")) {
-    return { category: "lifestyle_normal", categoryName: "Lifestyle/Normal" };
-  }
-  return { category: "packshot", categoryName: "Packshot" };
-}
-
 function mappingMatchesItem(entry: BulkMappingEntry, item: BulkFolderItem): boolean {
   const source = normalizeLookup(entry.source || "");
   if (!source) return false;
@@ -266,9 +253,10 @@ export function EanRenamerView() {
   const [priorityFirst, setPriorityFirst] = useState<PriorityFirstMap>({});
   const [priorityEnabled, setPriorityEnabled] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<ViewMode>("single");
+  const [bulkRootPath, setBulkRootPath] = useState("");
   const [bulkItems, setBulkItems] = useState<BulkWorkItem[]>([]);
-  const [bulkPlan, setBulkPlan] = useState<RenamePlanItem[]>([]);
   const [bulkWarnings, setBulkWarnings] = useState<string[]>([]);
+  const [activeBulkKey, setActiveBulkKey] = useState<string | null>(null);
 
   /* state: UI */
   const [showSettings, setShowSettings] = useState(false);
@@ -315,6 +303,8 @@ export function EanRenamerView() {
   );
   const bulkReadyCount = bulkItems.filter((item) => item.ean.trim()).length;
   const bulkMissingCount = bulkItems.length - bulkReadyCount;
+  const bulkDoneCount = bulkItems.filter((item) => item.status === "done").length;
+  const activeBulkItem = activeBulkKey ? bulkItems.find((item) => item.key === activeBulkKey) || null : null;
 
   /* ── Folder operations ── */
 
@@ -360,7 +350,7 @@ export function EanRenamerView() {
 
   async function handleRefresh() {
     if (!folderPath) return;
-    if (viewMode === "bulk") await loadBulkFolder(folderPath);
+    if (viewMode === "bulk") await loadBulkFolder(bulkRootPath || folderPath);
     else await loadFolder(folderPath);
   }
 
@@ -378,9 +368,10 @@ export function EanRenamerView() {
         body: JSON.stringify({ folderPath: path }),
       });
       setFolderPath(result.folderPath);
+      setBulkRootPath(result.folderPath);
       setRenamePlan([]);
-      setBulkPlan([]);
       setBulkWarnings([]);
+      setActiveBulkKey(null);
       setBulkItems(
         result.folders.map((item) => {
           const ean = extractEanCandidate(`${item.name} ${item.relativePath}`);
@@ -389,6 +380,7 @@ export function EanRenamerView() {
             ean,
             productName: "",
             matchSource: ean ? "folder" : "missing",
+            status: "pending",
           };
         })
       );
@@ -398,7 +390,7 @@ export function EanRenamerView() {
     }
   }
 
-  function updateBulkItem(key: string, patch: Partial<Pick<BulkWorkItem, "ean" | "productName" | "matchSource">>) {
+  function updateBulkItem(key: string, patch: Partial<Pick<BulkWorkItem, "ean" | "productName" | "matchSource" | "status">>) {
     setBulkItems((prev) =>
       prev.map((item) =>
         item.key === key
@@ -428,9 +420,66 @@ export function EanRenamerView() {
     }
   }
 
-  function openBulkItemSingle(item: BulkWorkItem) {
+  async function openBulkItemSingle(item: BulkWorkItem) {
+    setActiveBulkKey(item.key);
+    setBulkItems((prev) =>
+      prev.map((entry) =>
+        entry.key === item.key
+          ? { ...entry, status: "active" }
+          : entry.status === "active"
+            ? { ...entry, status: "pending" }
+            : entry
+      )
+    );
     setViewMode("single");
-    void loadFolder(item.folderPath);
+    await loadFolder(item.folderPath);
+    setCustomEan(item.ean.trim());
+    setProductName(item.productName.trim());
+    setProductNameContinuous(!!item.productName.trim());
+  }
+
+  function nextBulkItem(afterKey?: string | null) {
+    if (bulkItems.length === 0) return null;
+    const startIndex = afterKey ? bulkItems.findIndex((item) => item.key === afterKey) : -1;
+    const ordered = [...bulkItems.slice(startIndex + 1), ...bulkItems.slice(0, Math.max(0, startIndex + 1))];
+    return ordered.find((item) => item.key !== afterKey && item.status !== "done" && item.status !== "skipped") || null;
+  }
+
+  async function openNextBulkBatch() {
+    const next = nextBulkItem(activeBulkKey);
+    if (!next) {
+      notify("All bulk batches are complete", { type: "success" });
+      setViewMode("bulk");
+      return;
+    }
+    await openBulkItemSingle(next);
+  }
+
+  function markActiveBulkDone() {
+    if (!activeBulkKey) return;
+    setBulkItems((prev) =>
+      prev.map((item) =>
+        item.key === activeBulkKey
+          ? {
+              ...item,
+              ean: customEan.trim() || item.ean,
+              productName: productName.trim() || item.productName,
+              matchSource: customEan.trim() || productName.trim() ? "manual" : item.matchSource,
+              status: "done",
+            }
+          : item
+      )
+    );
+  }
+
+  function skipBulkItem(key: string) {
+    setBulkItems((prev) => prev.map((item) => (item.key === key ? { ...item, status: "skipped" } : item)));
+    if (activeBulkKey === key) setActiveBulkKey(null);
+  }
+
+  function returnToBulkWorking() {
+    if (bulkRootPath) setFolderPath(bulkRootPath);
+    setViewMode("bulk");
   }
 
   /* ── Output folder picking ── */
@@ -772,48 +821,6 @@ export function EanRenamerView() {
     };
   }, [folderPath, columns, workflowColumns, duplicateBuckets, outputFolders, customEan, productName, productNameContinuous, settings, priorityFirst]);
 
-  const buildBulkBody = useCallback(() => {
-    const assignments: Array<{ id: string; category: string; categoryName?: string; ean?: string; productName?: string }> = [];
-    const categoryOrder = ["packshot", "lifestyle_human", "lifestyle_normal", "artwork"];
-    const outputCategories: Record<string, string> = {
-      packshot: "Packshot",
-      lifestyle_human: "Lifestyle/Human",
-      lifestyle_normal: "Lifestyle/Normal",
-      artwork: "Artwork",
-    };
-    const outputFolderPaths: Record<string, string> = {};
-    Object.entries(outputFolders).forEach(([category, path]) => {
-      outputFolderPaths[category] = path;
-    });
-
-    bulkItems.forEach((item) => {
-      const ean = item.ean.trim();
-      if (!ean) return;
-      item.images.forEach((image) => {
-        const category = inferBulkCategory(image);
-        assignments.push({
-          id: image.id,
-          category: category.category,
-          categoryName: category.categoryName,
-          ean,
-          productName: item.productName.trim() || undefined,
-        });
-      });
-    });
-
-    return {
-      folderPath,
-      outputFolderPaths,
-      productNameContinuous: true,
-      namingMode: normalizeNamingMode(settings.namingMode === "per-category" ? "continuous" : settings.namingMode),
-      outputCategories,
-      outputMode: normalizeOutputMode(settings.outputMode),
-      categoryOrder,
-      assignments,
-      duplicateGroups: [],
-    };
-  }, [bulkItems, folderPath, outputFolders, settings.namingMode, settings.outputMode]);
-
   async function handlePreview() {
     if (!folderPath) return;
     setBusy(true);
@@ -827,53 +834,6 @@ export function EanRenamerView() {
       setShowPreviewModal(true);
     } catch (e) {
       notify("Preview failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleBulkPreview() {
-    if (!folderPath) return;
-    if (bulkReadyCount === 0) {
-      notify("Bulk preview needs EAN data", { type: "warning", message: "Enter EAN values or import a mapping/master file first." });
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await apiJson<RenameResult>("/api/ean-renamer/batch/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBulkBody()),
-      });
-      setBulkPlan(result.items);
-      setRenamePlan(result.items);
-      setShowPreviewModal(true);
-    } catch (e) {
-      notify("Bulk preview failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleBulkApply() {
-    if (!folderPath) return;
-    if (bulkReadyCount === 0) {
-      notify("Bulk copy needs EAN data", { type: "warning", message: "Enter EAN values or import a mapping/master file first." });
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await apiJson<RenameResult>("/api/ean-renamer/batch/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBulkBody()),
-      });
-      setBulkPlan(result.items);
-      setRenamePlan(result.items);
-      if (result.logPath) setLastLogPath(result.logPath);
-      notify("Bulk copy complete", { type: "success", message: `${result.items.length} images processed` });
-    } catch (e) {
-      notify("Bulk copy failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -898,9 +858,12 @@ export function EanRenamerView() {
       const renamed = result.renamed ?? result.items.length;
       const skipped = result.skipped ?? result.skippedCount ?? 0;
       const conflicts = Array.isArray(result.conflicts) ? result.conflicts.length : result.conflicts ?? 0;
+      markActiveBulkDone();
       notify("Rename complete", {
         type: conflicts > 0 ? "warning" : "success",
-        message: `${renamed} processed, ${skipped} skipped, ${conflicts} conflicts`,
+        message: activeBulkKey
+          ? `${renamed} processed, ${skipped} skipped, ${conflicts} conflicts. Batch marked done.`
+          : `${renamed} processed, ${skipped} skipped, ${conflicts} conflicts`,
       });
     } catch (e) {
       notify("Rename failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
@@ -1061,14 +1024,15 @@ export function EanRenamerView() {
             <div><span>Images</span><strong>{bulkItems.reduce((sum, item) => sum + item.imageCount, 0)}</strong></div>
             <div><span>Matched</span><strong className="ren-ok">{bulkReadyCount}</strong></div>
             <div><span>Missing</span><strong className={bulkMissingCount ? "ren-warn" : ""}>{bulkMissingCount}</strong></div>
-            <div><span>Preview</span><strong>{bulkPlan.length}</strong></div>
+            <div><span>Done</span><strong>{bulkDoneCount}</strong></div>
           </div>
           <div className="ren-bulk-tools">
             <input ref={mappingInputRef} type="file" hidden accept=".txt,.csv,.tsv,.xlsx,.xls" onChange={(e) => void handleBulkImport(e.currentTarget.files?.[0], "file")} />
             <input ref={masterInputRef} type="file" hidden accept=".xlsx,.xls,.csv,.txt,.tsv" onChange={(e) => void handleBulkImport(e.currentTarget.files?.[0], "master")} />
             <button className="btn btn-secondary btn-sm" onClick={() => mappingInputRef.current?.click()}>Import EAN + Name</button>
             <button className="btn btn-secondary btn-sm" onClick={() => masterInputRef.current?.click()}>Match Master Data</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => folderPath && loadBulkFolder(folderPath)} disabled={!folderPath || busy}>Rescan</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => void openNextBulkBatch()} disabled={bulkItems.length === 0 || busy}>Open Next Batch</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => (bulkRootPath || folderPath) && loadBulkFolder(bulkRootPath || folderPath)} disabled={!(bulkRootPath || folderPath) || busy}>Rescan</button>
           </div>
         </div>
         {bulkWarnings.length > 0 && <div className="ren-bulk-warning">{bulkWarnings.join(" ")}</div>}
@@ -1081,15 +1045,15 @@ export function EanRenamerView() {
           <div className="ren-bulk-grid">
             {bulkItems.map((item) => {
               const ready = !!item.ean.trim();
-              const packshotCount = item.images.filter((image) => inferBulkCategory(image).category === "packshot").length;
+              const statusText = item.status === "pending" ? (ready ? "ready" : "missing") : item.status;
               return (
-                <article key={item.key} className={`ren-bulk-card ${ready ? "ready" : "missing"}`}>
+                <article key={item.key} className={`ren-bulk-card ${ready ? "ready" : "missing"} status-${item.status}`}>
                   <div className="ren-bulk-card-head">
                     <div>
                       <strong title={item.relativePath}>{item.name}</strong>
                       <span>{item.relativePath === "." ? "Root folder" : item.relativePath}</span>
                     </div>
-                    <span className={`ren-bulk-status ${ready ? "ready" : "missing"}`}>{ready ? item.matchSource : "missing"}</span>
+                    <span className={`ren-bulk-status ${ready ? "ready" : "missing"} status-${item.status}`}>{statusText}</span>
                   </div>
                   <div className="ren-bulk-thumbs">
                     {item.sampleImages.map((image) => <img key={image.id} src={thumbnailUrl(image.id, folderPath)} alt={image.name} loading="lazy" />)}
@@ -1097,8 +1061,8 @@ export function EanRenamerView() {
                   </div>
                   <div className="ren-bulk-meta">
                     <span>{item.imageCount} images</span>
-                    <span>{packshotCount} packshot</span>
-                    <span>{item.imageCount - packshotCount} classified</span>
+                    <span>{item.imageIds.length} files queued</span>
+                    <span>{ready ? `EAN ${item.ean}` : "EAN needed"}</span>
                   </div>
                   <label className="ren-bulk-field">
                     <span>EAN</span>
@@ -1109,7 +1073,8 @@ export function EanRenamerView() {
                     <input value={item.productName} onChange={(e) => updateBulkItem(item.key, { productName: e.target.value, matchSource: "manual" })} placeholder="Optional" />
                   </label>
                   <div className="ren-bulk-card-actions">
-                    <button className="btn btn-secondary btn-sm" onClick={() => openBulkItemSingle(item)}>Open Single Mode</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => void openBulkItemSingle(item)}>Open Batch</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => skipBulkItem(item.key)} disabled={item.status === "done"}>Skip</button>
                   </div>
                 </article>
               );
@@ -1132,8 +1097,8 @@ export function EanRenamerView() {
             <button
               className={viewMode === "bulk" ? "active" : ""}
               onClick={() => {
-                setViewMode("bulk");
-                if (folderPath && bulkItems.length === 0) void loadBulkFolder(folderPath);
+                returnToBulkWorking();
+                if ((bulkRootPath || folderPath) && bulkItems.length === 0) void loadBulkFolder(bulkRootPath || folderPath);
               }}
             >
               Bulk Working
@@ -1282,6 +1247,20 @@ export function EanRenamerView() {
       </div>
 
       {/* ── Kanban board ── */}
+      {viewMode === "single" && activeBulkItem && (
+        <div className="ren-bulk-active">
+          <div>
+            <span>Bulk batch</span>
+            <strong>{activeBulkItem.name}</strong>
+            <small>{activeBulkItem.imageCount} images - {activeBulkItem.relativePath}</small>
+          </div>
+          <div className="ren-bulk-active-actions">
+            <button className="btn btn-secondary btn-sm" onClick={returnToBulkWorking}>Back to Bulk</button>
+            <button className="btn btn-primary btn-sm" onClick={() => void openNextBulkBatch()}>Next Batch</button>
+          </div>
+        </div>
+      )}
+
       {viewMode === "bulk" ? renderBulkWorking() : (
         <div className="ren-board">
         {columns.map((col) => {
@@ -1498,7 +1477,7 @@ export function EanRenamerView() {
         </div>
       )}
 
-      {previewExpanded && (
+      {previewExpanded && viewMode === "single" && (
         <div className="ren-preview-popover">
           <div className="ren-preview-popover-head">
             <strong>Rename Preview</strong>
@@ -1557,19 +1536,33 @@ export function EanRenamerView() {
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => setPreviewExpanded((v) => !v)}
+            disabled={viewMode === "bulk"}
           >
             {previewExpanded ? "Hide Preview" : "Show Preview"}
           </button>
           <div className="ren-actions-right">
-            <button className="btn btn-secondary" onClick={viewMode === "bulk" ? handleBulkPreview : handlePreview} disabled={busy || !folderPath}>
-              Preview
-            </button>
-            <button className="btn btn-primary" onClick={viewMode === "bulk" ? handleBulkApply : handleApply} disabled={busy || !folderPath}>
-              {settings.outputMode === "copy" ? "Copy" : "Rename"}
-            </button>
-            <button className="btn btn-secondary" onClick={handleUndo} disabled={busy || !lastLogPath}>
-              Undo
-            </button>
+            {viewMode === "bulk" ? (
+              <>
+                <button className="btn btn-secondary" onClick={() => (bulkRootPath || folderPath) && loadBulkFolder(bulkRootPath || folderPath)} disabled={busy || !(bulkRootPath || folderPath)}>
+                  Rescan
+                </button>
+                <button className="btn btn-primary" onClick={() => void openNextBulkBatch()} disabled={busy || bulkItems.length === 0}>
+                  Open Next Batch
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-secondary" onClick={handlePreview} disabled={busy || !folderPath}>
+                  Preview
+                </button>
+                <button className="btn btn-primary" onClick={handleApply} disabled={busy || !folderPath}>
+                  {settings.outputMode === "copy" ? "Copy" : "Rename"}
+                </button>
+                <button className="btn btn-secondary" onClick={handleUndo} disabled={busy || !lastLogPath}>
+                  Undo
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1616,8 +1609,7 @@ export function EanRenamerView() {
                 className="btn btn-primary"
                 onClick={() => {
                   setShowPreviewModal(false);
-                  if (viewMode === "bulk") handleBulkApply();
-                  else handleApply();
+                  handleApply();
                 }}
               >
                 Apply
@@ -2450,6 +2442,45 @@ const CSS = `
   min-height: 0;
 }
 
+.ren-bulk-active {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.ren-bulk-active > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ren-bulk-active span,
+.ren-bulk-active small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ren-bulk-active strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ren-bulk-active-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .ren-bulk-toolbar {
   display: flex;
   align-items: center;
@@ -2544,6 +2575,17 @@ const CSS = `
 
 .ren-bulk-card.ready { border-color: rgba(74, 222, 128, 0.35); }
 .ren-bulk-card.missing { border-color: rgba(250, 204, 21, 0.35); }
+.ren-bulk-card.status-active {
+  border-color: rgba(249, 115, 22, 0.65);
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.18);
+}
+.ren-bulk-card.status-done {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(74, 222, 128, 0.04);
+}
+.ren-bulk-card.status-skipped {
+  opacity: 0.58;
+}
 
 .ren-bulk-card-head {
   display: flex;
@@ -2576,6 +2618,9 @@ const CSS = `
 
 .ren-bulk-status.ready { color: var(--green); }
 .ren-bulk-status.missing { color: var(--yellow); }
+.ren-bulk-status.status-active { color: var(--accent); }
+.ren-bulk-status.status-done { color: var(--green); }
+.ren-bulk-status.status-skipped { color: var(--text-muted); }
 
 .ren-bulk-thumbs {
   display: grid;
@@ -2640,6 +2685,7 @@ const CSS = `
 
 .ren-bulk-card-actions {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
 }
 

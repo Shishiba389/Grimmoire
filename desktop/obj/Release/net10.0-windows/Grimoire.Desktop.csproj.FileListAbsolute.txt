@@ -108,4 +108,4 @@ D:\GRIMOIRE\desktop\obj\Release\net10.0-windows\Grimoire.Desktop.sourcelink.json
 D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\Velopack.dll
 D:\GRIMOIRE\desktop\obj\Release\net10.0-windows\Grimoire_MarkupCompile.lref
 D:\GRIMOIRE\desktop\obj\Release\net10.0-windows\App.baml
-D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-DalB_6SR.js
+D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-C5pZMfMh.js
