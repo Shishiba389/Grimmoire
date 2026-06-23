@@ -28,14 +28,13 @@ type KanbanColumn = {
   imageIds: string[];
 };
 
-type DuplicateTypeKey = "packshot" | "human" | "normal_lifestyle" | "artwork" | "video";
 type DuplicateGroup = {
   id: string;
   imageIds: string[];
   first: boolean;
 };
-type DuplicateBuckets = Record<DuplicateTypeKey, DuplicateGroup[]>;
-type DuplicateLabels = Record<DuplicateTypeKey, string>;
+type DuplicateBuckets = Record<string, DuplicateGroup[]>;
+type DuplicateLabels = Record<string, string>;
 type NamingMode = "per-category" | "continuous" | "prefixed";
 type OutputMode = "copy" | "in-folder";
 
@@ -82,27 +81,17 @@ const DEFAULT_COLUMNS: KanbanColumn[] = [
   { key: "duplicate", title: "Duplicate", fixed: true, imageIds: [] },
 ];
 
-const OUTPUT_CATEGORIES = ["Packshot", "Human", "Normal Lifestyle", "Artwork"];
-const DUPLICATE_TYPES: Array<{ key: DuplicateTypeKey; label: string }> = [
-  { key: "packshot", label: "PACK SHOT" },
-  { key: "human", label: "HUMAN" },
-  { key: "normal_lifestyle", label: "NORMAL LIFESTYLE" },
-  { key: "artwork", label: "ARTWORK" },
-  { key: "video", label: "VIDEO" },
-];
 const EMPTY_DUPLICATE_BUCKETS: DuplicateBuckets = {
   packshot: [],
-  human: [],
-  normal_lifestyle: [],
+  "lifestyle-human": [],
+  "lifestyle-normal": [],
   artwork: [],
-  video: [],
 };
 const DEFAULT_DUPLICATE_LABELS: DuplicateLabels = {
   packshot: "PACK SHOT",
-  human: "HUMAN",
-  normal_lifestyle: "NORMAL LIFESTYLE",
+  "lifestyle-human": "HUMAN",
+  "lifestyle-normal": "NORMAL LIFESTYLE",
   artwork: "ARTWORK",
-  video: "VIDEO",
 };
 
 /* ── Helpers ── */
@@ -131,6 +120,17 @@ function columnCategoryKey(key: string): string {
   if (key === "lifestyle-human") return "lifestyle_human";
   if (key === "lifestyle-normal") return "lifestyle_normal";
   return key;
+}
+
+function outputLabelForColumn(col: KanbanColumn): string {
+  if (col.key === "packshot") return "PACKSHOT";
+  if (col.key === "lifestyle-human") return "HUMAN";
+  if (col.key === "lifestyle-normal") return "NORMAL LIFESTYLE";
+  return col.title;
+}
+
+function duplicateLabelForColumn(col: KanbanColumn, labels: DuplicateLabels): string {
+  return labels[col.key] || outputLabelForColumn(col).toUpperCase();
 }
 
 function createDuplicateGroup(imageIds: string[] = [], first = false): DuplicateGroup {
@@ -186,8 +186,9 @@ export function EanRenamerView() {
 
   /* drag state */
   const [dragIds, setDragIds] = useState<string[]>([]);
+  const [dragSourceKey, setDragSourceKey] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [duplicateDropTarget, setDuplicateDropTarget] = useState<DuplicateTypeKey | null>(null);
+  const [duplicateDropTarget, setDuplicateDropTarget] = useState<string | null>(null);
 
   /* refs */
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -206,6 +207,10 @@ export function EanRenamerView() {
   const duplicateCount = Object.values(duplicateBuckets).reduce(
     (sum, groups) => sum + groups.reduce((groupSum, group) => groupSum + group.imageIds.length, 0),
     0
+  );
+  const workflowColumns = useMemo(
+    () => columns.filter((col) => col.key !== "unsorted" && col.key !== "duplicate"),
+    [columns]
   );
 
   /* ── Folder operations ── */
@@ -264,7 +269,7 @@ export function EanRenamerView() {
       const result = await apiJson<{ folderPath: string }>("/api/ean-renamer/folder/pick-output", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, initialPath: outputFolders[category] || folderPath }),
+        body: JSON.stringify({ category, initialFolderPath: outputFolders[category] || folderPath }),
       });
       if (result.folderPath) {
         setOutputFolders((prev) => ({ ...prev, [category]: result.folderPath }));
@@ -287,9 +292,10 @@ export function EanRenamerView() {
 
   /* ── Drag and drop ── */
 
-  function handleDragStart(e: React.DragEvent, imageId: string) {
-    const ids = selected.has(imageId) ? Array.from(selected) : [imageId];
+  function handleDragStart(e: React.DragEvent, imageId: string, sourceKey?: string) {
+    const ids = [imageId];
     setDragIds(ids);
+    setDragSourceKey(sourceKey || null);
     setHoverPreview(null);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", ids.join(","));
@@ -300,6 +306,11 @@ export function EanRenamerView() {
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 30, 16);
     requestAnimationFrame(() => ghost.remove());
+  }
+
+  function handleCardDragEnter(imageId: string, colKey?: string) {
+    if (!colKey || !dragSourceKey || colKey !== dragSourceKey) return;
+    setDragIds((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
   }
 
   function handleDragOver(e: React.DragEvent, colKey: string) {
@@ -331,8 +342,8 @@ export function EanRenamerView() {
     });
     setDuplicateBuckets((prev) => {
       const next = { ...prev };
-      DUPLICATE_TYPES.forEach(({ key }) => {
-        next[key] = prev[key]
+      Object.keys(prev).forEach((key) => {
+        next[key] = (prev[key] || [])
           .map((group) => ({ ...group, imageIds: group.imageIds.filter((id) => !dragIds.includes(id)) }))
           .filter((group) => group.imageIds.length > 0);
       });
@@ -341,7 +352,7 @@ export function EanRenamerView() {
     setDragIds([]);
   }
 
-  function handleDuplicateDragOver(e: React.DragEvent, bucket: DuplicateTypeKey) {
+  function handleDuplicateDragOver(e: React.DragEvent, bucket: string) {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
@@ -349,7 +360,7 @@ export function EanRenamerView() {
     setDuplicateDropTarget(bucket);
   }
 
-  function handleDuplicateDrop(e: React.DragEvent, bucket: DuplicateTypeKey) {
+  function handleDuplicateDrop(e: React.DragEvent, bucket: string) {
     e.preventDefault();
     e.stopPropagation();
     setDropTarget(null);
@@ -363,39 +374,39 @@ export function EanRenamerView() {
     );
     setDuplicateBuckets((prev) => {
       const next = { ...prev };
-      DUPLICATE_TYPES.forEach(({ key }) => {
-        next[key] = prev[key]
+      Object.keys(prev).forEach((key) => {
+        next[key] = (prev[key] || [])
           .map((group) => ({ ...group, imageIds: group.imageIds.filter((id) => !dragIds.includes(id)) }))
           .filter((group) => group.imageIds.length > 0);
       });
-      next[bucket] = [...next[bucket], createDuplicateGroup([...dragIds], false)];
+      next[bucket] = [...(next[bucket] || []), createDuplicateGroup([...dragIds], false)];
       return next;
     });
     setDragIds([]);
   }
 
-  function handleAddDuplicateGroup(bucket: DuplicateTypeKey) {
+  function handleAddDuplicateGroup(bucket: string) {
     setDuplicateBuckets((prev) => ({
       ...prev,
-      [bucket]: [...prev[bucket], createDuplicateGroup([], false)],
+      [bucket]: [...(prev[bucket] || []), createDuplicateGroup([], false)],
     }));
   }
 
-  function toggleDuplicateGroupFirst(bucket: DuplicateTypeKey, groupId: string) {
+  function toggleDuplicateGroupFirst(bucket: string, groupId: string) {
     setDuplicateBuckets((prev) => ({
       ...prev,
-      [bucket]: prev[bucket].map((group) =>
+      [bucket]: (prev[bucket] || []).map((group) =>
         group.id === groupId ? { ...group, first: !group.first } : group
       ),
     }));
   }
 
-  function removeDuplicateGroup(bucket: DuplicateTypeKey, groupId: string) {
-    const group = duplicateBuckets[bucket].find((item) => item.id === groupId);
+  function removeDuplicateGroup(bucket: string, groupId: string) {
+    const group = (duplicateBuckets[bucket] || []).find((item) => item.id === groupId);
     const returning = group?.imageIds || [];
     setDuplicateBuckets((prev) => ({
       ...prev,
-      [bucket]: prev[bucket].filter((item) => item.id !== groupId),
+      [bucket]: (prev[bucket] || []).filter((item) => item.id !== groupId),
     }));
     if (returning.length > 0) {
       setColumns((prev) =>
@@ -408,6 +419,7 @@ export function EanRenamerView() {
 
   function handleDragEnd() {
     setDragIds([]);
+    setDragSourceKey(null);
     setDropTarget(null);
     setDuplicateDropTarget(null);
     setHoverPreview(null);
@@ -428,6 +440,8 @@ export function EanRenamerView() {
       return;
     }
     setColumns((prev) => [...prev, { key, title: name.trim(), imageIds: [] }]);
+    setDuplicateBuckets((prev) => ({ ...prev, [key]: prev[key] || [] }));
+    setDuplicateLabels((prev) => ({ ...prev, [key]: name.trim().toUpperCase() }));
   }
 
   function handleRenameColumn(key: string) {
@@ -436,6 +450,7 @@ export function EanRenamerView() {
     const name = prompt("New name:", col.title);
     if (!name?.trim()) return;
     setColumns((prev) => prev.map((c) => (c.key === key ? { ...c, title: name.trim() } : c)));
+    setDuplicateLabels((prev) => ({ ...prev, [key]: name.trim().toUpperCase() }));
   }
 
   function handleRemoveColumn(key: string) {
@@ -447,6 +462,26 @@ export function EanRenamerView() {
       return prev
         .filter((c) => c.key !== key)
         .map((c) => (c.key === "unsorted" ? { ...c, imageIds: [...c.imageIds, ...returning] } : c));
+    });
+    setOutputFolders((prev) => {
+      const next = { ...prev };
+      delete next[columnCategoryKey(key)];
+      delete next[key];
+      return next;
+    });
+    setDuplicateBuckets((prev) => {
+      const groups = prev[key] || [];
+      const returning = groups.flatMap((group) => group.imageIds);
+      const next = { ...prev };
+      delete next[key];
+      if (returning.length > 0) {
+        setColumns((current) =>
+          current.map((item) =>
+            item.key === "unsorted" ? { ...item, imageIds: [...item.imageIds, ...returning] } : item
+          )
+        );
+      }
+      return next;
     });
   }
 
@@ -489,14 +524,6 @@ export function EanRenamerView() {
     const allPriorityIds: string[] = [];
     const duplicateGroups: Array<{ ids: string[]; first: boolean }> = [];
 
-    const DUPLICATE_KEY_TO_COLUMN: Record<DuplicateTypeKey, string> = {
-      packshot: "packshot",
-      human: "lifestyle-human",
-      normal_lifestyle: "lifestyle-normal",
-      artwork: "artwork",
-      video: "video",
-    };
-
     columns.forEach((col) => {
       if (col.key === "unsorted" || col.key === "duplicate") return;
       const category = columnCategoryKey(col.key);
@@ -505,16 +532,14 @@ export function EanRenamerView() {
       col.imageIds.forEach((id) => assignments.push({ id, category, categoryName: col.title }));
     });
 
-    DUPLICATE_TYPES.forEach(({ key }) => {
-      const colKey = DUPLICATE_KEY_TO_COLUMN[key];
-      const category = columnCategoryKey(colKey);
-      const col = columns.find((c) => c.key === colKey);
-      const categoryName = col?.title || key.replace(/_/g, " ");
+    workflowColumns.forEach((col) => {
+      const category = columnCategoryKey(col.key);
+      const categoryName = col.title;
       if (!outputCategories[category]) {
         outputCategories[category] = categoryName;
         categoryOrder.push(category);
       }
-      duplicateBuckets[key].forEach((group) => {
+      (duplicateBuckets[col.key] || []).forEach((group) => {
         group.imageIds.forEach((id) => assignments.push({ id, category, categoryName }));
       });
     });
@@ -523,8 +548,8 @@ export function EanRenamerView() {
       ids.forEach((id) => allPriorityIds.push(id));
     });
 
-    DUPLICATE_TYPES.forEach(({ key }) => {
-      duplicateBuckets[key].forEach((group) => {
+    workflowColumns.forEach((col) => {
+      (duplicateBuckets[col.key] || []).forEach((group) => {
         if (group.imageIds.length === 0) return;
         duplicateGroups.push({ ids: [...group.imageIds], first: group.first });
         if (group.first) {
@@ -535,14 +560,8 @@ export function EanRenamerView() {
       });
     });
 
-    const outputFolderMap: Record<string, string> = {
-      Packshot: "packshot",
-      Human: "lifestyle_human",
-      "Normal Lifestyle": "lifestyle_normal",
-      Artwork: "artwork",
-    };
-    Object.entries(outputFolders).forEach(([label, path]) => {
-      outputFolderPaths[outputFolderMap[label] || label] = path;
+    Object.entries(outputFolders).forEach(([category, path]) => {
+      outputFolderPaths[category] = path;
     });
 
     return {
@@ -559,7 +578,7 @@ export function EanRenamerView() {
       priorityIds: allPriorityIds.length > 0 ? allPriorityIds : undefined,
       duplicateGroups,
     };
-  }, [folderPath, columns, duplicateBuckets, duplicateLabels, outputFolders, customEan, productName, productNameContinuous, settings, priorityFirst, priorityEnabled]);
+  }, [folderPath, columns, workflowColumns, duplicateBuckets, outputFolders, customEan, productName, productNameContinuous, settings, priorityFirst]);
 
   async function handlePreview() {
     if (!folderPath) return;
@@ -690,7 +709,8 @@ export function EanRenamerView() {
         onMouseEnter={(e) => updateHoverPreview(e, img)}
         onMouseMove={(e) => updateHoverPreview(e, img)}
         onMouseLeave={() => setHoverPreview(null)}
-        onDragStart={(e) => handleDragStart(e, id)}
+        onDragStart={(e) => handleDragStart(e, id, colKey)}
+        onDragEnter={() => handleCardDragEnter(id, colKey)}
         onDragEnd={handleDragEnd}
       >
         <input
@@ -838,18 +858,25 @@ export function EanRenamerView() {
           Output
         </span>
         <div className="ren-output-fields">
-          {OUTPUT_CATEGORIES.map((cat) => (
-            <div key={cat} className="ren-output-field" onClick={() => handlePickOutput(cat)}>
-              <span className="ren-output-cat">{cat}</span>
-              <span className="ren-output-path">{outputFolders[cat] || "Set output"}</span>
-              {outputFolders[cat] && (
+          {workflowColumns.map((col) => {
+            const category = columnCategoryKey(col.key);
+            const legacyPath = outputFolders[outputLabelForColumn(col)] || outputFolders[col.title];
+            const outputPath = outputFolders[category] || outputFolders[col.key] || legacyPath;
+            return (
+            <div key={col.key} className="ren-output-field" onClick={() => handlePickOutput(category)}>
+              <span className="ren-output-cat">{outputLabelForColumn(col)}</span>
+              <span className="ren-output-path">{outputPath || "Set output"}</span>
+              {outputPath && (
                 <button
                   className="ren-output-clear"
                   onClick={(e) => {
                     e.stopPropagation();
                     setOutputFolders((prev) => {
                       const next = { ...prev };
-                      delete next[cat];
+                      delete next[category];
+                      delete next[col.key];
+                      delete next[col.title];
+                      delete next[outputLabelForColumn(col)];
                       return next;
                     });
                   }}
@@ -858,7 +885,8 @@ export function EanRenamerView() {
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
         <button
           className="btn btn-secondary btn-sm"
@@ -906,7 +934,10 @@ export function EanRenamerView() {
             </div>
             {col.key === "duplicate" ? (
               <div className="ren-col-body ren-duplicate-body">
-                {DUPLICATE_TYPES.map(({ key, label }) => {
+                {workflowColumns.map((duplicateCol) => {
+                  const key = duplicateCol.key;
+                  const groups = duplicateBuckets[key] || [];
+                  const label = duplicateLabelForColumn(duplicateCol, duplicateLabels);
                   return (
                     <div
                       key={key}
@@ -918,7 +949,7 @@ export function EanRenamerView() {
                       <div className="ren-duplicate-header">
                         <input
                           className="ren-duplicate-type"
-                          value={duplicateLabels[key]}
+                          value={label}
                           placeholder={label}
                           onChange={(e) => setDuplicateLabels((prev) => ({ ...prev, [key]: e.target.value }))}
                         />
@@ -931,7 +962,7 @@ export function EanRenamerView() {
                         </button>
                       </div>
                       <div className="ren-duplicate-images">
-                        {duplicateBuckets[key].map((group, index) => {
+                        {groups.map((group, index) => {
                           const groupKey = `dup-${key}-${group.id}`;
                           return (
                             <div
@@ -952,14 +983,14 @@ export function EanRenamerView() {
                                 );
                                 setDuplicateBuckets((prev) => {
                                   const next = { ...prev };
-                                  DUPLICATE_TYPES.forEach(({ key: typeKey }) => {
-                                    next[typeKey] = prev[typeKey]
+                                  Object.keys(prev).forEach((typeKey) => {
+                                    next[typeKey] = (prev[typeKey] || [])
                                       .map((item) => ({
                                         ...item,
                                         imageIds: item.imageIds.filter((id) => !dragIds.includes(id)),
                                       }));
                                   });
-                                  next[key] = next[key].map((item) =>
+                                  next[key] = (next[key] || []).map((item) =>
                                     item.id === group.id ? { ...item, imageIds: [...item.imageIds, ...dragIds] } : item
                                   );
                                   return next;
@@ -990,7 +1021,7 @@ export function EanRenamerView() {
                             </div>
                           );
                         })}
-                        {duplicateBuckets[key].length === 0 && <div className="ren-duplicate-empty">Drop images here</div>}
+                        {groups.length === 0 && <div className="ren-duplicate-empty">Drop images here</div>}
                       </div>
                     </div>
                   );
@@ -1033,11 +1064,17 @@ export function EanRenamerView() {
         </div>
       )}
 
-      <div className="ren-footer">
-        {previewExpanded && (
-          <>
-            <div className="ren-resize-handle" ref={resizeRef} onMouseDown={handleResizeStart} />
-            <div className="ren-preview-panel" style={{ height: previewHeight }}>
+      {previewExpanded && (
+        <div className="ren-preview-popover">
+          <div className="ren-preview-popover-head">
+            <strong>Rename Preview</strong>
+            <div className="ren-preview-popover-actions">
+              <button className="btn btn-secondary btn-sm" onClick={handlePreview} disabled={busy || !folderPath}>Refresh</button>
+              <button className="ren-modal-close" onClick={() => setPreviewExpanded(false)}>&times;</button>
+            </div>
+          </div>
+          <div className="ren-resize-handle" ref={resizeRef} onMouseDown={handleResizeStart} />
+          <div className="ren-preview-panel" style={{ height: previewHeight }}>
               <div className="ren-preview-table-wrap">
                 <table className="ren-preview-table">
                   <thead>
@@ -1077,9 +1114,11 @@ export function EanRenamerView() {
                   <span>Conflicts</span>
                 </div>
               </div>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
+      )}
+
+      <div className="ren-footer">
         <div className="ren-actions">
           <button
             className="btn btn-secondary btn-sm"
@@ -1897,6 +1936,40 @@ const CSS = `
   background: var(--bg-card);
 }
 
+.ren-preview-popover {
+  position: fixed;
+  left: 248px;
+  right: 28px;
+  bottom: 72px;
+  max-height: min(58vh, 560px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 45;
+  overflow: hidden;
+}
+
+.ren-preview-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ren-preview-popover-head strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.ren-preview-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .ren-resize-handle {
   height: 5px;
   cursor: ns-resize;
@@ -1924,7 +1997,7 @@ const CSS = `
 .ren-preview-panel {
   display: flex;
   gap: 12px;
-  padding: 0 16px 8px;
+  padding: 0 16px 12px;
   overflow: hidden;
 }
 

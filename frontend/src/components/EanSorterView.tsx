@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { apiJson, pickFolder } from "./ToolShared";
 import { useNotifications } from "../contexts/NotificationContext";
 
@@ -315,10 +315,25 @@ export function EanSorterView() {
   const [showNoBarcodePrompt, setShowNoBarcodePrompt] = useState(false);
   const [showDuplicatePrompt, setShowDuplicatePrompt] = useState(false);
   const [useNameForNoBarcode, setUseNameForNoBarcode] = useState(false);
+  const [noBarcodeStatuses, setNoBarcodeStatuses] = useState<Set<string>>(new Set());
   const [perProductForDuplicates, setPerProductForDuplicates] = useState(false);
   const [statusFoldersCreated, setStatusFoldersCreated] = useState(false);
   const [statusCreateResult, setStatusCreateResult] = useState<{ count: number; skipped_count: number } | null>(null);
   const [statusJob, setStatusJob] = useState<SorterJobRecord | null>(null);
+
+  const noBarcodeStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const product of statusData?.no_barcode ?? []) {
+      const status = product.status?.trim() || "Blanks";
+      counts[status] = (counts[status] || 0) + 1;
+    }
+    return counts;
+  }, [statusData?.no_barcode]);
+
+  const visibleNoBarcodeProducts = useMemo(() => {
+    if (!statusData) return [];
+    return statusData.no_barcode.filter((product) => noBarcodeStatuses.has(product.status?.trim() || "Blanks"));
+  }, [noBarcodeStatuses, statusData]);
 
   async function pickStatusFile() {
     if (!window.__grimoire?.pickFile) {
@@ -345,6 +360,7 @@ export function EanSorterView() {
     setStatusCreateResult(null);
     setStatusJob(null);
     setSelectedStatuses(new Set());
+    setNoBarcodeStatuses(new Set());
     setUseNameForNoBarcode(false);
     setPerProductForDuplicates(false);
     try {
@@ -366,6 +382,7 @@ export function EanSorterView() {
             );
           })();
       setStatusData(res);
+      setNoBarcodeStatuses(new Set(res.no_barcode.map((product) => product.status?.trim() || "Blanks")));
       notify(`Read ${res.total} products for ${res.brand}`, { type: "success" });
 
       if (res.no_barcode_count > 0) {
@@ -385,6 +402,14 @@ export function EanSorterView() {
     setSelectedStatuses((prev) => {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  }
+
+  function toggleNoBarcodeStatus(status: string) {
+    setNoBarcodeStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status); else next.add(status);
       return next;
     });
   }
@@ -412,6 +437,7 @@ export function EanSorterView() {
             statuses: [...selectedStatuses],
             brand: statusData.brand,
             use_name_for_no_barcode: useNameForNoBarcode,
+            no_barcode_statuses: [...noBarcodeStatuses],
             per_product_for_duplicates: perProductForDuplicates,
           }),
         }
@@ -1344,23 +1370,51 @@ export function EanSorterView() {
             </div>
             <div className="sor-guide-copy">
               <p><strong>{statusData.no_barcode_count}</strong> product(s) do not have a barcode (EAN):</p>
+              <p style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
+                Select which status values should keep using product-name folders.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                {Object.entries(noBarcodeStatusCounts).map(([status, count]) => (
+                  <label
+                    key={status}
+                    className={`sor-cat-option${noBarcodeStatuses.has(status) ? " selected" : ""}`}
+                    style={{ width: "auto", minWidth: 132, padding: "8px 10px" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={noBarcodeStatuses.has(status)}
+                      onChange={() => toggleNoBarcodeStatus(status)}
+                    />
+                    <span className="sor-cat-name">{status} ({count})</span>
+                  </label>
+                ))}
+              </div>
               <div className="sor-table-wrap" style={{ maxHeight: 200, marginTop: 8 }}>
                 <table className="sor-tbl">
                   <thead><tr><th>Code</th><th>Product Name</th><th>Status</th></tr></thead>
                   <tbody>
-                    {statusData.no_barcode.map((p, i) => (
+                    {visibleNoBarcodeProducts.map((p, i) => (
                       <tr key={i}><td>{p.code}</td><td>{p.name}</td><td>{p.status}</td></tr>
                     ))}
+                    {visibleNoBarcodeProducts.length === 0 && (
+                      <tr><td colSpan={3} style={{ textAlign: "center", opacity: 0.7 }}>No status selected.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
-              <p style={{ marginTop: 12 }}>Would you like to use the product name as the folder name instead?</p>
+              <p style={{ marginTop: 12 }}>
+                Use product names for <strong>{visibleNoBarcodeProducts.length}</strong> selected product(s)?
+              </p>
               <p style={{ fontSize: 12, opacity: 0.7 }}>Format: <strong>{statusData.brand}_Product Name_Status</strong></p>
               <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-                <button className="sor-btn-primary" onClick={() => { setUseNameForNoBarcode(true); setShowNoBarcodePrompt(false); }}>
+                <button
+                  className="sor-btn-primary"
+                  disabled={noBarcodeStatuses.size === 0}
+                  onClick={() => { setUseNameForNoBarcode(true); setShowNoBarcodePrompt(false); }}
+                >
                   Yes, Use Product Name
                 </button>
-                <button className="sor-btn-secondary" onClick={() => { setUseNameForNoBarcode(false); setShowNoBarcodePrompt(false); }}>
+                <button className="sor-btn-secondary" onClick={() => { setUseNameForNoBarcode(false); setNoBarcodeStatuses(new Set()); setShowNoBarcodePrompt(false); }}>
                   No, Skip These
                 </button>
               </div>

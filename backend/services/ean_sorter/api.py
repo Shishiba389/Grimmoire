@@ -382,6 +382,7 @@ def create_status_folders_sync(payload: dict, progress_callback=None) -> dict:
     statuses = payload.get("statuses", [])
     brand = payload.get("brand", "BRAND")
     use_name_for_no_barcode = payload.get("use_name_for_no_barcode", False)
+    no_barcode_statuses = {str(status).strip() for status in payload.get("no_barcode_statuses", [])}
     per_product_for_duplicates = payload.get("per_product_for_duplicates", False)
 
     if not destination:
@@ -437,7 +438,7 @@ def create_status_folders_sync(payload: dict, progress_callback=None) -> dict:
                 if str(sub) not in created_folders:
                     created_folders.append(str(sub))
         elif not barcode:
-            if use_name_for_no_barcode:
+            if use_name_for_no_barcode and (not no_barcode_statuses or status in no_barcode_statuses):
                 safe_name = re.sub(r'[<>:"/\\|?*]', '_', name.strip())
                 folder_name = f"{brand}_{safe_name}_{status}"
                 sub = status_dir / folder_name

@@ -236,8 +236,8 @@ const SHORTCUTS: Record<string, string> = {
   "/packshot-browser": "5",
   "/ean-sorter": "6",
   "/ean-renamer": "7",
-  "/guide": "8",
-  "/credits": "9",
+  "/guide": "9",
+  "/credits": "0",
 };
 
 /* â”€â”€â”€ Sidebar â”€â”€â”€ */
@@ -758,6 +758,17 @@ const BANNERS = [
 ];
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: "2026.06.23.0",
+    date: "2026-06-23",
+    title: "EAN Renamer drag grouping and dynamic outputs",
+    type: "EAN Renamer",
+    changes: [
+      "Dragging an image no longer moves unrelated checked images; groups are formed by dragging across cards in the same source column.",
+      "The rename preview panel is now a floating pop-up that can be shown or hidden without shrinking the board.",
+      "Added categories now automatically get matching output slots and Duplicate boxes using the same naming rules as existing columns.",
+    ],
+  },
   {
     version: "2026.06.22.3",
     date: "2026-06-22",
@@ -1510,11 +1521,10 @@ function AppShell() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const routes = ["/", "/data-qc", "/image-edit", "/images-check", "/packshot-browser", "/ean-sorter", "/ean-renamer", "/guide", "/credits"];
-        const idx = parseInt(e.key) - 1;
-        if (idx >= 0 && idx < routes.length) {
+        const target = Object.entries(SHORTCUTS).find(([, key]) => key === e.key)?.[0];
+        if (target) {
           e.preventDefault();
-          navigate(routes[idx]);
+          navigate(target);
         }
       }
     };
