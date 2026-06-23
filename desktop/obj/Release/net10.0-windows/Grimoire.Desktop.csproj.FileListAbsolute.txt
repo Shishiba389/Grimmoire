@@ -105,4 +105,4 @@ D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\icons\banner-ean-sorter.
 D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\icons\banner-image-edit.jpg
 D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-B5AiVXKD.css
 D:\GRIMOIRE\desktop\obj\Release\net10.0-windows\Grimoire.Desktop.sourcelink.json
-D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-CoaNrxoS.js
+D:\GRIMOIRE\desktop\bin\Release\net10.0-windows\wwwroot\assets\index-DM9Z3Twu.js
