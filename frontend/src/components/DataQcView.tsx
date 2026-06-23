@@ -159,6 +159,20 @@ function cellText(v: unknown): string {
   return String(v);
 }
 
+function numericSummary(summary: Record<string, unknown> | null | undefined, key: string, fallback = 0): number {
+  const value = Number(summary?.[key] ?? fallback);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function textSummary(summary: Record<string, unknown> | null | undefined, key: string, fallback = ""): string {
+  const value = summary?.[key];
+  return typeof value === "string" ? value : fallback;
+}
+
+function isFileStructureError(message: string): boolean {
+  return /missing required column|no dqc audit fields|master data header|upload the original master data/i.test(message);
+}
+
 function priorityForField(field: string): Priority {
   if (
     [
@@ -1925,8 +1939,9 @@ function DataQualityControlPanel() {
         } else if (next.status === "failed") {
           window.clearInterval(timer);
           setError(next.error ?? "Job failed");
-          notify("Data QC job failed", {
-            type: "error",
+          const message = next.error ?? "Job failed";
+          notify(isFileStructureError(message) ? "Replace the uploaded file" : "Data QC job failed", {
+            type: isFileStructureError(message) ? "warning" : "error",
             message: next.error ?? undefined,
           });
         }
@@ -1969,10 +1984,7 @@ function DataQualityControlPanel() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("chunk_size", "5000");
-      formData.append(
-        "max_workers",
-        String(Math.min(4, navigator.hardwareConcurrency || 2))
-      );
+      formData.append("max_workers", "0");
       formData.append("keep_detail_rows", "true");
       formData.append("selected_statuses", JSON.stringify(activeStatuses));
       notify(`Running DQC for ${file.name}`, { type: "info" });
@@ -1984,7 +1996,10 @@ function DataQualityControlPanel() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      notify("Failed to start audit", { type: "error", message: msg });
+      notify(isFileStructureError(msg) ? "Replace the uploaded file" : "Failed to start audit", {
+        type: isFileStructureError(msg) ? "warning" : "error",
+        message: msg,
+      });
     } finally {
       setBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -2060,7 +2075,24 @@ function DataQualityControlPanel() {
     setSort({ col: defaultKey, dir: "asc" });
   }, [activeTab]);
 
+  const isRunning = job?.status === "pending" || job?.status === "running";
   const summary = job?.summary ?? null;
+  const progressPercent = Math.max(
+    0,
+    Math.min(
+      100,
+      job?.status === "completed"
+        ? 100
+        : numericSummary(summary, "progress_percent", isRunning ? 3 : 0)
+    )
+  );
+  const progressPhase = textSummary(summary, "progress_phase", job?.status ?? "idle");
+  const progressMessage = textSummary(
+    summary,
+    "progress_message",
+    isRunning ? "Audit is running" : job?.status === "completed" ? "Audit complete" : "Ready"
+  );
+  const workerCount = numericSummary(summary, "worker_count", 0);
 
   function toggleStatus(status: string) {
     setSelectedStatuses((prev) => ({
@@ -2082,8 +2114,6 @@ function DataQualityControlPanel() {
       dir: prev.col === col && prev.dir === "asc" ? "desc" : "asc",
     }));
   }
-
-  const isRunning = job?.status === "pending" || job?.status === "running";
 
   useEffect(() => {
     const openUpload = () => fileInputRef.current?.click();
@@ -2153,6 +2183,28 @@ function DataQualityControlPanel() {
       </section>
 
       {/* ── Stat Cards (always visible) ── */}
+      {job && (
+        <section className={`tool-card dqc-progress-panel dqc-progress-${job.status}`}>
+          <div className="dqc-progress-head">
+            <div>
+              <div className="dqc-section-title">Audit Progress</div>
+              <div className="dqc-sub">
+                {progressMessage}
+                {workerCount ? ` | workers: ${workerCount}` : ""}
+              </div>
+            </div>
+            <strong>{Math.round(progressPercent)}%</strong>
+          </div>
+          <div className="dqc-progress-track" aria-label="Data QC audit progress">
+            <div className="dqc-progress-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+          <div className="dqc-progress-meta">
+            <span>{progressPhase.replace(/_/g, " ")}</span>
+            <span>{job.original_filename ?? textSummary(summary, "current_file", "")}</span>
+          </div>
+        </section>
+      )}
+
       <div className="dqc-stat-grid">
         <StatCard label="Brands Audited">
           <div className="dqc-stat-val green">
@@ -2461,6 +2513,50 @@ function DataQualityControlPanel() {
           border-radius: var(--radius-sm, 6px);
           color: var(--dqc-red);
           font-size: 12.5px;
+        }
+        .dqc-progress-panel {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 16px;
+          padding: 16px 20px;
+        }
+        .dqc-progress-head,
+        .dqc-progress-meta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .dqc-progress-head strong {
+          color: var(--accent);
+          font-size: 18px;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+        }
+        .dqc-progress-track {
+          height: 10px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: var(--bg-input);
+          border: 1px solid var(--border);
+        }
+        .dqc-progress-fill {
+          height: 100%;
+          min-width: 3px;
+          border-radius: inherit;
+          background: linear-gradient(90deg, var(--accent), var(--dqc-orange));
+          transition: width 0.35s ease;
+        }
+        .dqc-progress-meta {
+          color: var(--text-muted);
+          font-size: 11.5px;
+          text-transform: capitalize;
+        }
+        .dqc-progress-completed .dqc-progress-fill {
+          background: var(--dqc-green);
+        }
+        .dqc-progress-failed .dqc-progress-fill {
+          background: var(--dqc-red);
         }
 
         /* Stat cards */

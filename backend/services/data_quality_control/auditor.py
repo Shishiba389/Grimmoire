@@ -526,4 +526,6 @@ def suggested_action(field: str) -> str:
 
 def effective_dqc_worker_count(options: AuditOptions) -> int:
     cpu_count = os.cpu_count() or 1
-    return max(1, min(options.max_workers, cpu_count, 16))
+    if options.max_workers == 0:
+        return max(1, cpu_count)
+    return max(1, options.max_workers)
