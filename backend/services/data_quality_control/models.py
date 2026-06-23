@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class AuditOptions(BaseModel):
     chunk_size: int = Field(default=5000, ge=100, le=100000)
-    max_workers: int = Field(default=2, ge=1, le=16)
+    max_workers: int = Field(default=0, ge=0)
     keep_detail_rows: bool = True
     selected_statuses: list[str] | None = None
 

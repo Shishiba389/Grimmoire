@@ -7,6 +7,8 @@ from typing import Any
 import pandas as pd
 from openpyxl import load_workbook
 
+from .field_mapping import FIELD_ALIASES
+
 
 CANONICAL_ALIASES = {
     "brand": ["brand", "brand name", "brand_name", "BRAND", "OBJECT"],
@@ -43,6 +45,36 @@ def find_column(columns: list[str], aliases: list[str]) -> str | None:
     return None
 
 
+def validate_master_data_columns(read_result: ReadResult, fields_to_audit: list[str]) -> None:
+    columns = read_result.columns
+    missing_required: list[str] = []
+    for label, aliases in (
+        ("Brand", CANONICAL_ALIASES["brand"]),
+        ("STATUS", CANONICAL_ALIASES["status"]),
+        ("SKU / item code", CANONICAL_ALIASES["sku"]),
+        ("Product name", CANONICAL_ALIASES["product_name"]),
+    ):
+        if find_column(columns, aliases) is None:
+            missing_required.append(label)
+
+    available_audit_fields = [
+        field
+        for field in fields_to_audit
+        if find_column(columns, FIELD_ALIASES.get(field, [field])) is not None
+    ]
+    if not missing_required and available_audit_fields:
+        return
+
+    parts: list[str] = []
+    if missing_required:
+        parts.append(f"Missing required column(s): {', '.join(missing_required)}")
+    if not available_audit_fields:
+        examples = ", ".join(fields_to_audit[:8])
+        parts.append(f"No DQC audit fields were found. Expected fields include: {examples}")
+    parts.append("Please upload the original master data file for Data Quality Control.")
+    raise ValueError(" | ".join(parts))
+
+
 def read_master_data(path: Path, fields_to_audit: list[str]) -> ReadResult:
     if not path.exists():
         raise FileNotFoundError(f"Input file not found: {path}")
@@ -52,14 +84,18 @@ def read_master_data(path: Path, fields_to_audit: list[str]) -> ReadResult:
     if path.suffix.lower() == ".csv":
         df = pd.read_csv(path, dtype=str, keep_default_na=False)
         df = _clean_dataframe(df)
-        return ReadResult(df, "csv", 1, path, list(df.columns), [])
+        result = ReadResult(df, "csv", 1, path, list(df.columns), [])
+        validate_master_data_columns(result, fields_to_audit)
+        return result
 
     sheet_name, header_row, warnings = detect_excel_layout(path, fields_to_audit)
     df = pd.read_excel(path, sheet_name=sheet_name, header=header_row - 1, dtype=str, keep_default_na=False)
     df = _clean_dataframe(df)
     if df.empty:
         raise ValueError("No data rows were found after the detected header row")
-    return ReadResult(df, sheet_name, header_row, path, list(df.columns), warnings)
+    result = ReadResult(df, sheet_name, header_row, path, list(df.columns), warnings)
+    validate_master_data_columns(result, fields_to_audit)
+    return result
 
 
 def detect_excel_layout(path: Path, fields_to_audit: list[str]) -> tuple[str, int, list[str]]:
@@ -92,7 +128,12 @@ def detect_excel_layout(path: Path, fields_to_audit: list[str]) -> tuple[str, in
                 best = (score, worksheet.title, row_idx)
 
     if best is None:
-        raise ValueError("Could not detect a valid header row. Expected a Brand column.")
+        examples = ", ".join(["Brand", "STATUS", "SKU", *fields_to_audit[:5]])
+        raise ValueError(
+            "Could not detect a valid master data header row. "
+            f"Expected columns include: {examples}. "
+            "Please upload the original master data file for Data Quality Control."
+        )
     return best[1], best[2], warnings
 
 

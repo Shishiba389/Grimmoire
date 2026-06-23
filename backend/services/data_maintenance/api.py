@@ -547,7 +547,7 @@ def create_data_maintenance_job(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     chunk_size: int = Form(default=5000),
-    max_workers: int = Form(default=2),
+    max_workers: int = Form(default=0),
     keep_detail_rows: bool = Form(default=True),
     selected_statuses: str = Form(default=""),
 ) -> JobRecord:
@@ -559,7 +559,7 @@ def create_data_quality_control_job(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     chunk_size: int = Form(default=5000),
-    max_workers: int = Form(default=2),
+    max_workers: int = Form(default=0),
     keep_detail_rows: bool = Form(default=True),
     selected_statuses: str = Form(default=""),
 ) -> JobRecord:
@@ -592,7 +592,17 @@ def create_data_quality_control_job(
         selected_statuses=parse_selected_statuses(selected_statuses),
     )
     output_path = output_dir / f"data_quality_control_report_{Path(safe_name).stem}.xlsx"
-    job = job_store.update_job(job_id, status=JobStatus.running)
+    job = job_store.update_job(
+        job_id,
+        status=JobStatus.running,
+        summary={
+            "progress_percent": 2,
+            "progress_phase": "queued",
+            "current_file": safe_name,
+            "progress_message": "Queued Data QC audit",
+            "worker_count": max_workers,
+        },
+    )
     background_tasks.add_task(execute_data_quality_control_job, job_id, input_path, output_path, options)
     return job
 
@@ -1121,8 +1131,14 @@ def execute_image_edit_job(job_id: str, input_paths: list[Path], output_dir: Pat
 
 
 def execute_data_quality_control_job(job_id: str, input_path: Path, output_path: Path, options: AuditOptions) -> None:
+    def update_progress(progress: dict[str, Any]) -> None:
+        current = job_store.get_job(job_id).summary or {}
+        current.update(progress)
+        current["worker_count"] = options.max_workers or (os.cpu_count() or 1)
+        job_store.update_job(job_id, status=JobStatus.running, summary=current)
+
     try:
-        summary = run_data_maintenance(input_path, output_path, options=options, job_id=job_id)
+        summary = run_data_maintenance(input_path, output_path, options=options, job_id=job_id, progress_callback=update_progress)
         final_output_path = branded_missing_data_output_path(output_path, summary.brand_count)
         if output_path.exists() and output_path.resolve() != final_output_path.resolve():
             if final_output_path.exists():
@@ -1134,10 +1150,18 @@ def execute_data_quality_control_job(job_id: str, input_path: Path, output_path:
             status=JobStatus.completed,
             output_path=summary.output_path,
             error="",
-            summary=summary.model_dump(),
+            summary={**summary.model_dump(), "progress_percent": 100, "progress_phase": "completed", "progress_message": "Audit complete"},
         )
     except Exception as exc:
-        job_store.update_job(job_id, status=JobStatus.failed, error=str(exc))
+        current = job_store.get_job(job_id).summary or {}
+        current.update(
+            {
+                "progress_phase": "failed",
+                "progress_message": str(exc),
+                "progress_percent": current.get("progress_percent", 0),
+            }
+        )
+        job_store.update_job(job_id, status=JobStatus.failed, error=str(exc), summary=current)
 
 
 def branded_missing_data_output_path(output_path: Path, brand_count: int) -> Path:
