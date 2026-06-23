@@ -68,6 +68,11 @@ type HoverPreviewState = {
   y: number;
 } | null;
 
+type DragPoint = {
+  x: number;
+  y: number;
+} | null;
+
 type PriorityFirstMap = Record<string, Set<string>>;
 
 /* ── Constants ── */
@@ -187,8 +192,10 @@ export function EanRenamerView() {
   /* drag state */
   const [dragIds, setDragIds] = useState<string[]>([]);
   const [dragSourceKey, setDragSourceKey] = useState<string | null>(null);
+  const [dragPoint, setDragPoint] = useState<DragPoint>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [duplicateDropTarget, setDuplicateDropTarget] = useState<string | null>(null);
+  const [duplicateGroupDropTarget, setDuplicateGroupDropTarget] = useState<string | null>(null);
 
   /* refs */
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -296,39 +303,50 @@ export function EanRenamerView() {
     const ids = [imageId];
     setDragIds(ids);
     setDragSourceKey(sourceKey || null);
+    setDragPoint({ x: e.clientX, y: e.clientY });
     setHoverPreview(null);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", ids.join(","));
     /* ghost */
     const ghost = document.createElement("div");
     ghost.className = "ren-drag-ghost";
-    ghost.textContent = `${ids.length} image${ids.length > 1 ? "s" : ""}`;
+    ghost.textContent = "Drag over cards to group";
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 30, 16);
     requestAnimationFrame(() => ghost.remove());
   }
 
-  function handleCardDragEnter(imageId: string, colKey?: string) {
+  function handleDragMove(e: React.DragEvent) {
+    if (dragIds.length === 0) return;
+    setDragPoint({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleCardDragEnter(e: React.DragEvent, imageId: string, colKey?: string) {
+    handleDragMove(e);
     if (!colKey || !dragSourceKey || colKey !== dragSourceKey) return;
     setDragIds((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
   }
 
   function handleDragOver(e: React.DragEvent, colKey: string) {
     e.preventDefault();
+    handleDragMove(e);
     e.dataTransfer.dropEffect = "move";
     setDropTarget(colKey);
     setDuplicateDropTarget(null);
+    setDuplicateGroupDropTarget(null);
   }
 
   function handleDragLeave() {
     setDropTarget(null);
     setDuplicateDropTarget(null);
+    setDuplicateGroupDropTarget(null);
   }
 
   function handleDrop(e: React.DragEvent, targetColKey: string) {
     e.preventDefault();
     setDropTarget(null);
     setDuplicateDropTarget(null);
+    setDuplicateGroupDropTarget(null);
     if (targetColKey === "duplicate") return;
     if (dragIds.length === 0) return;
     setColumns((prev) => {
@@ -350,14 +368,18 @@ export function EanRenamerView() {
       return next;
     });
     setDragIds([]);
+    setDragSourceKey(null);
+    setDragPoint(null);
   }
 
   function handleDuplicateDragOver(e: React.DragEvent, bucket: string) {
     e.preventDefault();
     e.stopPropagation();
+    handleDragMove(e);
     e.dataTransfer.dropEffect = "move";
     setDropTarget("duplicate");
     setDuplicateDropTarget(bucket);
+    setDuplicateGroupDropTarget(null);
   }
 
   function handleDuplicateDrop(e: React.DragEvent, bucket: string) {
@@ -365,6 +387,7 @@ export function EanRenamerView() {
     e.stopPropagation();
     setDropTarget(null);
     setDuplicateDropTarget(null);
+    setDuplicateGroupDropTarget(null);
     if (dragIds.length === 0) return;
     setColumns((prev) =>
       prev.map((col) => ({
@@ -383,6 +406,8 @@ export function EanRenamerView() {
       return next;
     });
     setDragIds([]);
+    setDragSourceKey(null);
+    setDragPoint(null);
   }
 
   function handleAddDuplicateGroup(bucket: string) {
@@ -420,12 +445,15 @@ export function EanRenamerView() {
   function handleDragEnd() {
     setDragIds([]);
     setDragSourceKey(null);
+    setDragPoint(null);
     setDropTarget(null);
     setDuplicateDropTarget(null);
+    setDuplicateGroupDropTarget(null);
     setHoverPreview(null);
   }
 
   function updateHoverPreview(e: React.MouseEvent, image: RenImage) {
+    if (dragIds.length > 0) return;
     setHoverPreview({ image, x: e.clientX, y: e.clientY });
   }
 
@@ -677,6 +705,21 @@ export function EanRenamerView() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [showSettings]);
 
+  useEffect(() => {
+    if (dragIds.length === 0) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setDragIds([]);
+      setDragSourceKey(null);
+      setDragPoint(null);
+      setDropTarget(null);
+      setDuplicateDropTarget(null);
+      setDuplicateGroupDropTarget(null);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [dragIds.length]);
+
   /* ── Computed plan stats ── */
 
   const planStats = useMemo(() => {
@@ -698,19 +741,23 @@ export function EanRenamerView() {
     const img = imageMap.get(id);
     if (!img) return null;
     const isSelected = selected.has(id);
-    const isDragging = dragIds.includes(id);
+    const isGrouped = dragIds.includes(id);
+    const isSeed = dragIds[0] === id;
+    const canGroupHere = dragIds.length > 0 && !!colKey && colKey === dragSourceKey && !isGrouped;
     const showPriority = colKey && priorityEnabled[colKey];
     const isPriority = colKey ? isImagePriority(colKey, id) : false;
     return (
       <div
         key={id}
-        className={`ren-card ${isSelected ? "ren-card-selected" : ""} ${isDragging ? "ren-card-dragging" : ""} ${isPriority ? "ren-card-priority" : ""}`}
+        className={`ren-card ${isSelected ? "ren-card-selected" : ""} ${isGrouped ? "ren-card-grouped" : ""} ${isSeed ? "ren-card-group-seed" : ""} ${canGroupHere ? "ren-card-can-group" : ""} ${isPriority ? "ren-card-priority" : ""}`}
         draggable
         onMouseEnter={(e) => updateHoverPreview(e, img)}
         onMouseMove={(e) => updateHoverPreview(e, img)}
         onMouseLeave={() => setHoverPreview(null)}
         onDragStart={(e) => handleDragStart(e, id, colKey)}
-        onDragEnter={() => handleCardDragEnter(id, colKey)}
+        onDrag={(e) => handleDragMove(e)}
+        onDragOver={(e) => handleDragMove(e)}
+        onDragEnter={(e) => handleCardDragEnter(e, id, colKey)}
         onDragEnd={handleDragEnd}
       >
         <input
@@ -732,6 +779,10 @@ export function EanRenamerView() {
             {renamePlan.some((p) => p.id === id && (p.status || "rename") === "rename") && (
               <span className="ren-chip ren-chip-renamed">renamed</span>
             )}
+            {isGrouped && (
+              <span className="ren-chip ren-chip-grouped">{isSeed ? "drag start" : "grouped"}</span>
+            )}
+            {canGroupHere && <span className="ren-chip ren-chip-can-group">add</span>}
           </div>
         </div>
         {showPriority && (
@@ -898,11 +949,14 @@ export function EanRenamerView() {
       </div>
 
       {/* ── Kanban board ── */}
-      <div className="ren-board">
-        {columns.map((col) => (
+        <div className="ren-board">
+        {columns.map((col) => {
+          const isDragSourceColumn = dragIds.length > 0 && dragSourceKey === col.key;
+          const isDropColumn = dragIds.length > 0 && dropTarget === col.key && col.key !== "duplicate";
+          return (
           <div
             key={col.key}
-            className={`ren-column ${dropTarget === col.key ? "ren-column-drop" : ""}`}
+            className={`ren-column ${dropTarget === col.key ? "ren-column-drop" : ""} ${isDragSourceColumn ? "ren-column-source" : ""}`}
             onDragOver={(e) => handleDragOver(e, col.key)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, col.key)}
@@ -946,6 +1000,11 @@ export function EanRenamerView() {
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDuplicateDrop(e, key)}
                     >
+                      {duplicateDropTarget === key && dragIds.length > 0 && !duplicateGroupDropTarget && (
+                        <div className="ren-drop-hint ren-duplicate-hint">
+                          Create duplicate group with {dragIds.length} image{dragIds.length > 1 ? "s" : ""}
+                        </div>
+                      )}
                       <div className="ren-duplicate-header">
                         <input
                           className="ren-duplicate-type"
@@ -967,13 +1026,21 @@ export function EanRenamerView() {
                           return (
                             <div
                               key={group.id}
-                              className="ren-duplicate-group"
-                              onDragOver={(e) => handleDuplicateDragOver(e, key)}
+                              className={`ren-duplicate-group ${duplicateGroupDropTarget === group.id ? "ren-duplicate-group-drop" : ""}`}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDragMove(e);
+                                setDropTarget("duplicate");
+                                setDuplicateDropTarget(key);
+                                setDuplicateGroupDropTarget(group.id);
+                              }}
                               onDrop={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setDropTarget(null);
                                 setDuplicateDropTarget(null);
+                                setDuplicateGroupDropTarget(null);
                                 if (dragIds.length === 0) return;
                                 setColumns((prev) =>
                                   prev.map((col) => ({
@@ -996,8 +1063,15 @@ export function EanRenamerView() {
                                   return next;
                                 });
                                 setDragIds([]);
+                                setDragSourceKey(null);
+                                setDragPoint(null);
                               }}
                             >
+                              {duplicateGroupDropTarget === group.id && dragIds.length > 0 && (
+                                <div className="ren-drop-hint ren-duplicate-hint">
+                                  Add {dragIds.length} image{dragIds.length > 1 ? "s" : ""} to Group {index + 1}
+                                </div>
+                              )}
                               <div className="ren-duplicate-group-head">
                                 <span>Group {index + 1}</span>
                                 <label className="ren-priority-toggle" title="This duplicate group should get the first available number">
@@ -1029,12 +1103,23 @@ export function EanRenamerView() {
               </div>
             ) : (
               <div className="ren-col-body">
+                {isDragSourceColumn && (
+                  <div className="ren-source-hint">
+                    Drag over more cards to group them, then drop into another column
+                  </div>
+                )}
+                {isDropColumn && (
+                  <div className="ren-drop-hint">
+                    Drop {dragIds.length} image{dragIds.length > 1 ? "s" : ""} here
+                  </div>
+                )}
                 {col.imageIds.map((id) => renderImageCard(id, col.key))}
                 {col.imageIds.length === 0 && <div className="ren-col-empty">Drop images here</div>}
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         <button className="ren-add-col" onClick={handleAddColumn} title="Add category">
           +
         </button>
@@ -1061,6 +1146,20 @@ export function EanRenamerView() {
           <div className="ren-hover-meta">
             {hoverPreview.image.width}&times;{hoverPreview.image.height} &middot; {formatFileSize(hoverPreview.image.sizeBytes)} &middot; {hoverPreview.image.extension.toUpperCase()}
           </div>
+        </div>
+      )}
+
+      {dragIds.length > 0 && dragPoint && (
+        <div
+          className="ren-drag-pill"
+          style={{
+            left: Math.max(12, Math.min(dragPoint.x + 18, window.innerWidth - 230)),
+            top: Math.max(12, Math.min(dragPoint.y + 18, window.innerHeight - 82)),
+          }}
+        >
+          <strong>{dragIds.length}</strong>
+          <span>{dragIds.length > 1 ? "images grouped" : "image ready"}</span>
+          {dragSourceKey && <small>drag over cards to add</small>}
         </div>
       )}
 
@@ -1498,6 +1597,11 @@ const CSS = `
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+.ren-column-source {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.18);
+}
+
 .ren-col-header {
   display: flex;
   align-items: center;
@@ -1615,6 +1719,32 @@ const CSS = `
   min-height: 60px;
 }
 
+.ren-source-hint,
+.ren-drop-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ren-source-hint {
+  border: 1px dashed rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.09);
+  color: #7dd3fc;
+}
+
+.ren-drop-hint {
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.08);
+}
+
 /* ── Card ── */
 .ren-duplicate-body {
   gap: 10px;
@@ -1634,6 +1764,11 @@ const CSS = `
 .ren-duplicate-drop {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.ren-duplicate-hint {
+  min-height: 28px;
+  padding: 6px 8px;
 }
 
 .ren-duplicate-header {
@@ -1699,6 +1834,11 @@ const CSS = `
   background: rgba(0, 0, 0, 0.08);
 }
 
+.ren-duplicate-group-drop {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .ren-duplicate-group-head {
   display: flex;
   align-items: center;
@@ -1756,6 +1896,22 @@ const CSS = `
   background: var(--bg-card-hover);
 }
 
+.ren-card-grouped {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28);
+  opacity: 1;
+}
+
+.ren-card-group-seed {
+  box-shadow: inset 3px 0 0 #38bdf8, 0 0 0 1px rgba(56, 189, 248, 0.28);
+}
+
+.ren-card-can-group {
+  border-style: dashed;
+  border-color: rgba(56, 189, 248, 0.65);
+}
+
 .ren-hover-preview {
   position: fixed;
   z-index: 1000;
@@ -1808,10 +1964,6 @@ const CSS = `
 .ren-card-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-soft);
-}
-
-.ren-card-dragging {
-  opacity: 0.4;
 }
 
 .ren-card-check {
@@ -1880,6 +2032,16 @@ const CSS = `
   color: var(--green);
 }
 
+.ren-chip-grouped {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+}
+
+.ren-chip-can-group {
+  background: rgba(249, 115, 22, 0.14);
+  color: var(--accent);
+}
+
 .ren-card-grip {
   color: var(--text-muted);
   font-size: 12px;
@@ -1927,6 +2089,50 @@ const CSS = `
   border-radius: 4px;
   pointer-events: none;
   z-index: 9999;
+}
+
+.ren-drag-pill {
+  position: fixed;
+  z-index: 1001;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: center;
+  min-width: 168px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  box-shadow: var(--shadow-lg);
+}
+
+.ren-drag-pill strong {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #38bdf8;
+  color: #07111f;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ren-drag-pill span {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.ren-drag-pill small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.1;
 }
 
 /* ── Footer ── */

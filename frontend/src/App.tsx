@@ -759,6 +759,17 @@ const BANNERS = [
 
 const CHANGELOG_ENTRIES = [
   {
+    version: "2026.06.23.1",
+    date: "2026-06-23",
+    title: "EAN Renamer drag group clarity",
+    type: "EAN Renamer",
+    changes: [
+      "Drag grouping now shows a live floating count so users know exactly how many images are being moved.",
+      "Cards added to the drag group use a dedicated grouped style and badges separate from checkbox selection.",
+      "Drop targets now explain whether the images will move to a column, create a Duplicate group, or add to an existing group.",
+    ],
+  },
+  {
     version: "2026.06.23.0",
     date: "2026-06-23",
     title: "EAN Renamer drag grouping and dynamic outputs",
