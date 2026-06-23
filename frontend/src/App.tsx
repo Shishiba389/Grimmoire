@@ -759,6 +759,17 @@ const BANNERS = [
 
 const CHANGELOG_ENTRIES = [
   {
+    version: "2026.06.23.2",
+    date: "2026-06-23",
+    title: "EAN Renamer Bulk Working phase one",
+    type: "EAN Renamer",
+    changes: [
+      "Added a Bulk Working subview for scanning a root folder into folder work items with image counts, excluding video formats.",
+      "Bulk cards support manual EAN/Product Name entry plus TXT/Excel mapping or master-data matching before preview.",
+      "Bulk preview and copy reuse the existing EAN Renamer naming/output rules with per-folder EAN and product data.",
+    ],
+  },
+  {
     version: "2026.06.23.1",
     date: "2026-06-23",
     title: "EAN Renamer drag group clarity",

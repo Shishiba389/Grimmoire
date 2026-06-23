@@ -40,6 +40,11 @@ public partial class MainWindow : Window
         UpdateStatus("Loading UI...");
         await InitWebView();
         _backendWatchdog.Start();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            await UpdateService.CheckDownloadAndApplySilentlyAsync(OnBackendLog);
+        });
     }
 
     private void FitWindowToWorkArea()

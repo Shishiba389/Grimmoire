@@ -21,6 +21,36 @@ type FolderResult = {
   images: RenImage[];
 };
 
+type BulkFolderItem = {
+  key: string;
+  folderPath: string;
+  relativePath: string;
+  name: string;
+  imageCount: number;
+  imageIds: string[];
+  images: RenImage[];
+  sampleImages: RenImage[];
+};
+
+type BulkScanResult = {
+  folderPath: string;
+  totalFolders: number;
+  totalImages: number;
+  folders: BulkFolderItem[];
+};
+
+type BulkMappingEntry = {
+  ean?: string | null;
+  productName?: string | null;
+  source?: string | null;
+};
+
+type BulkWorkItem = BulkFolderItem & {
+  ean: string;
+  productName: string;
+  matchSource: "manual" | "folder" | "file" | "master" | "missing";
+};
+
 type KanbanColumn = {
   key: string;
   title: string;
@@ -61,6 +91,8 @@ type SettingsState = {
   outputMode: OutputMode;
   namingMode: NamingMode;
 };
+
+type ViewMode = "single" | "bulk";
 
 type HoverPreviewState = {
   image: RenImage;
@@ -158,6 +190,62 @@ function planOutput(item: RenamePlanItem): string {
   return item.outputPath || item.outputRelativePath || item.newName || "";
 }
 
+function extractEanCandidate(value: string): string {
+  const match = value.match(/\b\d{8,14}\b/);
+  return match?.[0] || "";
+}
+
+function normalizeLookup(value: string): string {
+  return value.toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function inferBulkCategory(image: RenImage): { category: string; categoryName: string } {
+  const label = `${image.relativePath} ${image.name}`.toLowerCase();
+  if (label.includes("artwork") || label.includes("art work") || label.includes("label")) {
+    return { category: "artwork", categoryName: "Artwork" };
+  }
+  if (label.includes("human") || label.includes("model") || label.includes("people") || label.includes("face")) {
+    return { category: "lifestyle_human", categoryName: "Lifestyle/Human" };
+  }
+  if (label.includes("lifestyle") || label.includes("normal")) {
+    return { category: "lifestyle_normal", categoryName: "Lifestyle/Normal" };
+  }
+  return { category: "packshot", categoryName: "Packshot" };
+}
+
+function mappingMatchesItem(entry: BulkMappingEntry, item: BulkFolderItem): boolean {
+  const source = normalizeLookup(entry.source || "");
+  if (!source) return false;
+  const targets = [
+    item.name,
+    item.relativePath,
+    ...item.sampleImages.map((image) => image.name),
+    ...item.sampleImages.map((image) => image.relativePath),
+  ].map(normalizeLookup);
+  return targets.some((target) => target.includes(source) || source.includes(target));
+}
+
+function applyMappingsToBulkItems(
+  items: BulkWorkItem[],
+  entries: BulkMappingEntry[],
+  source: "file" | "master",
+): BulkWorkItem[] {
+  return items.map((item) => {
+    const eanFromFolder = extractEanCandidate(`${item.name} ${item.relativePath}`);
+    const matched =
+      entries.find((entry) => entry.ean && eanFromFolder && entry.ean.includes(eanFromFolder)) ||
+      entries.find((entry) => mappingMatchesItem(entry, item)) ||
+      entries.find((entry) => entry.ean && item.sampleImages.some((image) => normalizeLookup(image.name).includes(normalizeLookup(entry.ean || ""))));
+    if (!matched) return item;
+    return {
+      ...item,
+      ean: matched.ean || item.ean,
+      productName: matched.productName || item.productName,
+      matchSource: source,
+    };
+  });
+}
+
 /* ── Component ── */
 
 export function EanRenamerView() {
@@ -177,6 +265,10 @@ export function EanRenamerView() {
   const [outputFolders, setOutputFolders] = useState<Record<string, string>>({});
   const [priorityFirst, setPriorityFirst] = useState<PriorityFirstMap>({});
   const [priorityEnabled, setPriorityEnabled] = useState<Record<string, boolean>>({});
+  const [viewMode, setViewMode] = useState<ViewMode>("single");
+  const [bulkItems, setBulkItems] = useState<BulkWorkItem[]>([]);
+  const [bulkPlan, setBulkPlan] = useState<RenamePlanItem[]>([]);
+  const [bulkWarnings, setBulkWarnings] = useState<string[]>([]);
 
   /* state: UI */
   const [showSettings, setShowSettings] = useState(false);
@@ -200,6 +292,8 @@ export function EanRenamerView() {
   /* refs */
   const resizeRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const mappingInputRef = useRef<HTMLInputElement>(null);
+  const masterInputRef = useRef<HTMLInputElement>(null);
 
   const imageMap = useMemo(() => {
     const m = new Map<string, RenImage>();
@@ -219,13 +313,18 @@ export function EanRenamerView() {
     () => columns.filter((col) => col.key !== "unsorted" && col.key !== "duplicate"),
     [columns]
   );
+  const bulkReadyCount = bulkItems.filter((item) => item.ean.trim()).length;
+  const bulkMissingCount = bulkItems.length - bulkReadyCount;
 
   /* ── Folder operations ── */
 
   async function handlePickFolder() {
     try {
       const result = await apiJson<{ folderPath: string }>("/api/ean-renamer/folder/pick", { method: "POST" });
-      if (result.folderPath) await loadFolder(result.folderPath);
+      if (result.folderPath) {
+        if (viewMode === "bulk") await loadBulkFolder(result.folderPath);
+        else await loadFolder(result.folderPath);
+      }
     } catch (e) {
       notify("Failed to pick folder", { type: "error", message: e instanceof Error ? e.message : String(e) });
     }
@@ -260,13 +359,78 @@ export function EanRenamerView() {
   }
 
   async function handleRefresh() {
-    if (folderPath) await loadFolder(folderPath);
+    if (!folderPath) return;
+    if (viewMode === "bulk") await loadBulkFolder(folderPath);
+    else await loadFolder(folderPath);
   }
 
   function handleOpenPath() {
     if (folderPath && window.__grimoire?.revealInExplorer) {
       window.__grimoire.revealInExplorer(folderPath);
     }
+  }
+
+  async function loadBulkFolder(path: string) {
+    try {
+      const result = await apiJson<BulkScanResult>("/api/ean-renamer/folder/bulk-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderPath: path }),
+      });
+      setFolderPath(result.folderPath);
+      setRenamePlan([]);
+      setBulkPlan([]);
+      setBulkWarnings([]);
+      setBulkItems(
+        result.folders.map((item) => {
+          const ean = extractEanCandidate(`${item.name} ${item.relativePath}`);
+          return {
+            ...item,
+            ean,
+            productName: "",
+            matchSource: ean ? "folder" : "missing",
+          };
+        })
+      );
+      notify("Bulk scan complete", { type: "success", message: `${result.totalFolders} folders, ${result.totalImages} images` });
+    } catch (e) {
+      notify("Bulk scan failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  function updateBulkItem(key: string, patch: Partial<Pick<BulkWorkItem, "ean" | "productName" | "matchSource">>) {
+    setBulkItems((prev) =>
+      prev.map((item) =>
+        item.key === key
+          ? { ...item, ...patch, matchSource: patch.matchSource || (patch.ean || patch.productName ? "manual" : item.matchSource) }
+          : item
+      )
+    );
+  }
+
+  async function handleBulkImport(file: File | undefined, source: "file" | "master") {
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const result = await apiJson<{ entries: BulkMappingEntry[]; warnings: string[] }>("/api/ean-renamer/bulk/import-map", {
+        method: "POST",
+        body: form,
+      });
+      setBulkItems((prev) => applyMappingsToBulkItems(prev, result.entries, source));
+      setBulkWarnings(result.warnings || []);
+      notify(source === "master" ? "Master data matched" : "Mapping file imported", {
+        type: result.entries.length ? "success" : "warning",
+        message: `${result.entries.length} rows detected`,
+      });
+    } catch (e) {
+      notify("Import failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  function openBulkItemSingle(item: BulkWorkItem) {
+    setViewMode("single");
+    void loadFolder(item.folderPath);
   }
 
   /* ── Output folder picking ── */
@@ -608,6 +772,48 @@ export function EanRenamerView() {
     };
   }, [folderPath, columns, workflowColumns, duplicateBuckets, outputFolders, customEan, productName, productNameContinuous, settings, priorityFirst]);
 
+  const buildBulkBody = useCallback(() => {
+    const assignments: Array<{ id: string; category: string; categoryName?: string; ean?: string; productName?: string }> = [];
+    const categoryOrder = ["packshot", "lifestyle_human", "lifestyle_normal", "artwork"];
+    const outputCategories: Record<string, string> = {
+      packshot: "Packshot",
+      lifestyle_human: "Lifestyle/Human",
+      lifestyle_normal: "Lifestyle/Normal",
+      artwork: "Artwork",
+    };
+    const outputFolderPaths: Record<string, string> = {};
+    Object.entries(outputFolders).forEach(([category, path]) => {
+      outputFolderPaths[category] = path;
+    });
+
+    bulkItems.forEach((item) => {
+      const ean = item.ean.trim();
+      if (!ean) return;
+      item.images.forEach((image) => {
+        const category = inferBulkCategory(image);
+        assignments.push({
+          id: image.id,
+          category: category.category,
+          categoryName: category.categoryName,
+          ean,
+          productName: item.productName.trim() || undefined,
+        });
+      });
+    });
+
+    return {
+      folderPath,
+      outputFolderPaths,
+      productNameContinuous: true,
+      namingMode: normalizeNamingMode(settings.namingMode === "per-category" ? "continuous" : settings.namingMode),
+      outputCategories,
+      outputMode: normalizeOutputMode(settings.outputMode),
+      categoryOrder,
+      assignments,
+      duplicateGroups: [],
+    };
+  }, [bulkItems, folderPath, outputFolders, settings.namingMode, settings.outputMode]);
+
   async function handlePreview() {
     if (!folderPath) return;
     setBusy(true);
@@ -621,6 +827,53 @@ export function EanRenamerView() {
       setShowPreviewModal(true);
     } catch (e) {
       notify("Preview failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleBulkPreview() {
+    if (!folderPath) return;
+    if (bulkReadyCount === 0) {
+      notify("Bulk preview needs EAN data", { type: "warning", message: "Enter EAN values or import a mapping/master file first." });
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await apiJson<RenameResult>("/api/ean-renamer/batch/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildBulkBody()),
+      });
+      setBulkPlan(result.items);
+      setRenamePlan(result.items);
+      setShowPreviewModal(true);
+    } catch (e) {
+      notify("Bulk preview failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleBulkApply() {
+    if (!folderPath) return;
+    if (bulkReadyCount === 0) {
+      notify("Bulk copy needs EAN data", { type: "warning", message: "Enter EAN values or import a mapping/master file first." });
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await apiJson<RenameResult>("/api/ean-renamer/batch/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildBulkBody()),
+      });
+      setBulkPlan(result.items);
+      setRenamePlan(result.items);
+      if (result.logPath) setLastLogPath(result.logPath);
+      notify("Bulk copy complete", { type: "success", message: `${result.items.length} images processed` });
+    } catch (e) {
+      notify("Bulk copy failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
@@ -799,6 +1052,74 @@ export function EanRenamerView() {
     );
   }
 
+  function renderBulkWorking() {
+    return (
+      <div className="ren-bulk">
+        <div className="ren-bulk-toolbar">
+          <div className="ren-bulk-summary">
+            <div><span>Folders</span><strong>{bulkItems.length}</strong></div>
+            <div><span>Images</span><strong>{bulkItems.reduce((sum, item) => sum + item.imageCount, 0)}</strong></div>
+            <div><span>Matched</span><strong className="ren-ok">{bulkReadyCount}</strong></div>
+            <div><span>Missing</span><strong className={bulkMissingCount ? "ren-warn" : ""}>{bulkMissingCount}</strong></div>
+            <div><span>Preview</span><strong>{bulkPlan.length}</strong></div>
+          </div>
+          <div className="ren-bulk-tools">
+            <input ref={mappingInputRef} type="file" hidden accept=".txt,.csv,.tsv,.xlsx,.xls" onChange={(e) => void handleBulkImport(e.currentTarget.files?.[0], "file")} />
+            <input ref={masterInputRef} type="file" hidden accept=".xlsx,.xls,.csv,.txt,.tsv" onChange={(e) => void handleBulkImport(e.currentTarget.files?.[0], "master")} />
+            <button className="btn btn-secondary btn-sm" onClick={() => mappingInputRef.current?.click()}>Import EAN + Name</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => masterInputRef.current?.click()}>Match Master Data</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => folderPath && loadBulkFolder(folderPath)} disabled={!folderPath || busy}>Rescan</button>
+          </div>
+        </div>
+        {bulkWarnings.length > 0 && <div className="ren-bulk-warning">{bulkWarnings.join(" ")}</div>}
+        {bulkItems.length === 0 ? (
+          <div className="ren-bulk-empty">
+            <strong>Select a root folder to start Bulk Working</strong>
+            <span>The scan lists direct images and each subfolder with image counts. Video files such as MP4 are ignored.</span>
+          </div>
+        ) : (
+          <div className="ren-bulk-grid">
+            {bulkItems.map((item) => {
+              const ready = !!item.ean.trim();
+              const packshotCount = item.images.filter((image) => inferBulkCategory(image).category === "packshot").length;
+              return (
+                <article key={item.key} className={`ren-bulk-card ${ready ? "ready" : "missing"}`}>
+                  <div className="ren-bulk-card-head">
+                    <div>
+                      <strong title={item.relativePath}>{item.name}</strong>
+                      <span>{item.relativePath === "." ? "Root folder" : item.relativePath}</span>
+                    </div>
+                    <span className={`ren-bulk-status ${ready ? "ready" : "missing"}`}>{ready ? item.matchSource : "missing"}</span>
+                  </div>
+                  <div className="ren-bulk-thumbs">
+                    {item.sampleImages.map((image) => <img key={image.id} src={thumbnailUrl(image.id, folderPath)} alt={image.name} loading="lazy" />)}
+                    {item.sampleImages.length === 0 && <span>No images</span>}
+                  </div>
+                  <div className="ren-bulk-meta">
+                    <span>{item.imageCount} images</span>
+                    <span>{packshotCount} packshot</span>
+                    <span>{item.imageCount - packshotCount} classified</span>
+                  </div>
+                  <label className="ren-bulk-field">
+                    <span>EAN</span>
+                    <input value={item.ean} onChange={(e) => updateBulkItem(item.key, { ean: e.target.value, matchSource: "manual" })} placeholder="Enter EAN" />
+                  </label>
+                  <label className="ren-bulk-field">
+                    <span>Product name</span>
+                    <input value={item.productName} onChange={(e) => updateBulkItem(item.key, { productName: e.target.value, matchSource: "manual" })} placeholder="Optional" />
+                  </label>
+                  <div className="ren-bulk-card-actions">
+                    <button className="btn btn-secondary btn-sm" onClick={() => openBulkItemSingle(item)}>Open Single Mode</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="ren-root">
       <style>{CSS}</style>
@@ -806,6 +1127,18 @@ export function EanRenamerView() {
       {/* ── Top bar ── */}
       <div className="ren-topbar">
         <div className="ren-topbar-row">
+          <div className="ren-mode-switch">
+            <button className={viewMode === "single" ? "active" : ""} onClick={() => setViewMode("single")}>Single Folder</button>
+            <button
+              className={viewMode === "bulk" ? "active" : ""}
+              onClick={() => {
+                setViewMode("bulk");
+                if (folderPath && bulkItems.length === 0) void loadBulkFolder(folderPath);
+              }}
+            >
+              Bulk Working
+            </button>
+          </div>
           <div className="ren-folder-group">
             <input className="ren-path-input" readOnly value={folderPath} placeholder="No folder selected" />
             <button className="btn btn-primary btn-sm" onClick={handlePickFolder}>Pick Folder</button>
@@ -949,6 +1282,7 @@ export function EanRenamerView() {
       </div>
 
       {/* ── Kanban board ── */}
+      {viewMode === "bulk" ? renderBulkWorking() : (
         <div className="ren-board">
         {columns.map((col) => {
           const isDragSourceColumn = dragIds.length > 0 && dragSourceKey === col.key;
@@ -1125,6 +1459,7 @@ export function EanRenamerView() {
         </button>
       </div>
 
+      )}
       {/* ── Footer / Preview panel ── */}
       {hoverPreview && (
         <div
@@ -1226,10 +1561,10 @@ export function EanRenamerView() {
             {previewExpanded ? "Hide Preview" : "Show Preview"}
           </button>
           <div className="ren-actions-right">
-            <button className="btn btn-secondary" onClick={handlePreview} disabled={busy || !folderPath}>
+            <button className="btn btn-secondary" onClick={viewMode === "bulk" ? handleBulkPreview : handlePreview} disabled={busy || !folderPath}>
               Preview
             </button>
-            <button className="btn btn-primary" onClick={handleApply} disabled={busy || !folderPath}>
+            <button className="btn btn-primary" onClick={viewMode === "bulk" ? handleBulkApply : handleApply} disabled={busy || !folderPath}>
               {settings.outputMode === "copy" ? "Copy" : "Rename"}
             </button>
             <button className="btn btn-secondary" onClick={handleUndo} disabled={busy || !lastLogPath}>
@@ -1281,7 +1616,8 @@ export function EanRenamerView() {
                 className="btn btn-primary"
                 onClick={() => {
                   setShowPreviewModal(false);
-                  handleApply();
+                  if (viewMode === "bulk") handleBulkApply();
+                  else handleApply();
                 }}
               >
                 Apply
@@ -1326,6 +1662,34 @@ const CSS = `
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.ren-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ren-mode-switch button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ren-mode-switch button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 .ren-path-input {
@@ -2074,6 +2438,209 @@ const CSS = `
 .ren-add-col:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.ren-bulk {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.ren-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.ren-bulk-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(70px, auto));
+  gap: 10px;
+}
+
+.ren-bulk-summary div,
+.ren-bulk-card-head > div,
+.ren-bulk-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.ren-bulk-summary span,
+.ren-bulk-meta,
+.ren-bulk-card-head span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ren-bulk-summary strong {
+  color: var(--text-primary);
+  font-size: 17px;
+}
+
+.ren-ok { color: var(--green) !important; }
+.ren-warn { color: var(--yellow) !important; }
+
+.ren-bulk-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ren-bulk-warning {
+  padding: 9px 11px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 8px;
+  background: rgba(250, 204, 21, 0.08);
+  color: var(--yellow);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ren-bulk-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 360px;
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+}
+
+.ren-bulk-empty strong {
+  color: var(--text-primary);
+}
+
+.ren-bulk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.ren-bulk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ren-bulk-card.ready { border-color: rgba(74, 222, 128, 0.35); }
+.ren-bulk-card.missing { border-color: rgba(250, 204, 21, 0.35); }
+
+.ren-bulk-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ren-bulk-card-head > div {
+  min-width: 0;
+  gap: 3px;
+}
+
+.ren-bulk-card-head strong {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ren-bulk-status {
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ren-bulk-status.ready { color: var(--green); }
+.ren-bulk-status.missing { color: var(--yellow); }
+
+.ren-bulk-thumbs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  min-height: 54px;
+}
+
+.ren-bulk-thumbs img,
+.ren-bulk-thumbs span {
+  width: 100%;
+  height: 54px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  object-fit: cover;
+}
+
+.ren-bulk-thumbs span {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ren-bulk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ren-bulk-meta span {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--bg-card);
+}
+
+.ren-bulk-field {
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ren-bulk-field input {
+  height: 30px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-primary);
+  padding: 0 9px;
+  font: inherit;
+  outline: none;
+}
+
+.ren-bulk-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.ren-bulk-card-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ── Drag ghost ── */

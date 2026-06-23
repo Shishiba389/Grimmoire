@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("GRIMOIRE - Unified Product Data Toolkit")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e8aba32eb9986c7fabe2e37b85f7359483973666")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+40f819cf8b2d878f1848c134e2e501e797f889ba")]
 [assembly: System.Reflection.AssemblyProductAttribute("Grimoire")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Grimoire")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -71,6 +71,35 @@ class PickOutputFolderRequest(BaseModel):
     initialFolderPath: str | None = None
 
 
+class BulkFolderItem(BaseModel):
+    key: str
+    folderPath: str
+    relativePath: str
+    name: str
+    imageCount: int
+    imageIds: list[str] = Field(default_factory=list)
+    images: list[ImageItem] = Field(default_factory=list)
+    sampleImages: list[ImageItem] = Field(default_factory=list)
+
+
+class BulkScanResponse(BaseModel):
+    folderPath: str
+    totalFolders: int
+    totalImages: int
+    folders: list[BulkFolderItem] = Field(default_factory=list)
+
+
+class BulkMappingEntry(BaseModel):
+    ean: str | None = None
+    productName: str | None = None
+    source: str | None = None
+
+
+class BulkMappingResponse(BaseModel):
+    entries: list[BulkMappingEntry] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class UndoRequest(BaseModel):
     folderPath: str = Field(min_length=1)
     logPath: str | None = None
@@ -85,6 +114,8 @@ class BatchAssignment(BaseModel):
     id: str
     category: str
     categoryName: str | None = None
+    ean: str | None = None
+    productName: str | None = None
 
 
 class DuplicateGroup(BaseModel):

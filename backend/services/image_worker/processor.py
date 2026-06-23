@@ -22,6 +22,7 @@ from PIL import Image, ImageColor, ImageFilter, ImageOps
 from .ai_tools import pytorch_realesrgan_python, pytorch_realesrgan_weight, realesrgan_executable
 from .auto_compose import auto_compose
 from .models import BackgroundRemovalMode, CanvasBackgroundMode, ClarityEnhanceMode, FitMode, ImageEditRequest, ImageEditSummary, MarginMode, OutputMode, ProcessedImage, StandardUpscaleMethod
+from .runtime import node_executable
 
 
 SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".avif"}
@@ -397,7 +398,7 @@ def process_sharp_batch_records(
         for _, image_input, _, output_path in tasks
     ]
     result = subprocess.run(
-        ["node", str(worker_path), "batch"],
+        [node_executable(), str(worker_path), "batch"],
         input=json.dumps({"items": items, "concurrency": min(worker_count, 8)}),
         capture_output=True,
         text=True,
@@ -500,7 +501,7 @@ def run_sharp_transform(source_path: Path, output_path: Path, request: ImageEdit
         "request": request.model_dump(mode="json"),
     }
     result = subprocess.run(
-        ["node", str(worker_path), "transform"],
+        [node_executable(), str(worker_path), "transform"],
         input=json.dumps(payload),
         capture_output=True,
         text=True,

@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from PIL import Image, UnidentifiedImageError
 
-from services.ean_renamer.models import FolderResponse, ImageItem
+from services.ean_renamer.models import BulkFolderItem, BulkScanResponse, FolderResponse, ImageItem
 
 IMAGE_EXTENSIONS = {
     ".jpg",
@@ -118,6 +118,47 @@ def scan_root_folder(folder_path: str) -> FolderResponse:
     return response
 
 
+def scan_bulk_folders(folder_path: str) -> BulkScanResponse:
+    root = normalize_folder(folder_path)
+    folders: list[BulkFolderItem] = []
+
+    direct_images = collect_direct_images_only(root, root.name, root)
+    if direct_images:
+        folders.append(
+            bulk_item_for_images(
+                key="__root__",
+                folder=root,
+                relative_path=".",
+                images=direct_images,
+            )
+        )
+
+    try:
+        children = sorted(root.iterdir(), key=lambda item: item.name.lower())
+    except OSError as exc:
+        raise HTTPException(status_code=403, detail="Could not read selected folder (permission denied)") from exc
+
+    for child in children:
+        if not child.is_dir() or child.name.lower() in SKIPPED_DIR_NAMES_NORMALIZED:
+            continue
+        images = collect_images_only(child, child.name, root)
+        folders.append(
+            bulk_item_for_images(
+                key=child.relative_to(root).as_posix(),
+                folder=child,
+                relative_path=child.relative_to(root).as_posix(),
+                images=images,
+            )
+        )
+
+    return BulkScanResponse(
+        folderPath=str(root),
+        totalFolders=len(folders),
+        totalImages=sum(item.imageCount for item in folders),
+        folders=folders,
+    )
+
+
 def invalidate_scan_cache(folder_path: str | None = None) -> None:
     if folder_path is None:
         _SCAN_CACHE.clear()
@@ -136,6 +177,43 @@ def collect_images(folder: Path, ean: str, root: Path) -> list[ImageItem]:
         if item:
             images.append(item)
     return images
+
+
+def collect_images_only(folder: Path, ean: str, root: Path) -> list[ImageItem]:
+    images: list[ImageItem] = []
+    for path in image_files_under(folder):
+        item = image_item_for_path(path, ean, root)
+        if item:
+            images.append(item)
+    return images
+
+
+def collect_direct_images_only(folder: Path, ean: str, root: Path) -> list[ImageItem]:
+    images: list[ImageItem] = []
+    try:
+        paths = sorted(folder.iterdir(), key=lambda item: item.name.lower())
+    except OSError:
+        return images
+    for path in paths:
+        if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        item = image_item_for_path(path, ean, root)
+        if item:
+            images.append(item)
+    return images
+
+
+def bulk_item_for_images(key: str, folder: Path, relative_path: str, images: list[ImageItem]) -> BulkFolderItem:
+    return BulkFolderItem(
+        key=key,
+        folderPath=str(folder),
+        relativePath=relative_path,
+        name=folder.name,
+        imageCount=len(images),
+        imageIds=[image.id for image in images],
+        images=images,
+        sampleImages=images[:4],
+    )
 
 
 def collect_direct_images(folder: Path, ean: str, root: Path) -> list[ImageItem]:
@@ -201,5 +279,28 @@ def safe_media_files_under(folder: Path) -> list[Path]:
     return paths
 
 
+def safe_image_files_under(folder: Path) -> list[Path]:
+    paths: list[Path] = []
+
+    def on_walk_error(error: OSError) -> None:
+        return None
+
+    for current_root, dir_names, file_names in os.walk(folder, topdown=True, onerror=on_walk_error):
+        dir_names[:] = sorted(
+            [name for name in dir_names if name.lower() not in SKIPPED_DIR_NAMES_NORMALIZED],
+            key=str.lower,
+        )
+        current_path = Path(current_root)
+        for file_name in sorted(file_names, key=str.lower):
+            path = current_path / file_name
+            if path.suffix.lower() in IMAGE_EXTENSIONS:
+                paths.append(path)
+    return paths
+
+
 def media_files_under(folder: Path) -> list[Path]:
     return sorted(safe_media_files_under(folder), key=lambda item: item.relative_to(folder).as_posix().lower())
+
+
+def image_files_under(folder: Path) -> list[Path]:
+    return sorted(safe_image_files_under(folder), key=lambda item: item.relative_to(folder).as_posix().lower())

@@ -9,16 +9,23 @@
     <ApplicationIcon>grimoire.ico</ApplicationIcon>
     <AssemblyName>Grimoire</AssemblyName>
     <RootNamespace>Grimoire.Desktop</RootNamespace>
+    <StartupObject>Grimoire.Desktop.App</StartupObject>
     <Version>1.0.0</Version>
     <Description>GRIMOIRE - Unified Product Data Toolkit</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="..\frontend\dist\**" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
   </ItemGroup>
 
 </Project>

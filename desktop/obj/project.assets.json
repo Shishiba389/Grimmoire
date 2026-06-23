@@ -21,6 +21,19 @@
             "rid": "win-x86"
           }
         }
+      },
+      "Velopack/1.2.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Velopack.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/Velopack.dll": {
+            "related": ".xml"
+          }
+        }
       }
     }
   },
@@ -121,11 +134,35 @@
         "tools/wv2winrt/zh-Hans/System.CommandLine.resources.dll",
         "tools/wv2winrt/zh-Hant/System.CommandLine.resources.dll"
       ]
+    },
+    "Velopack/1.2.0": {
+      "sha512": "Rz67gJL619fSBS6omaSINUxyDuwhIxkm5mmubf7uLd5Qgi6LLKaKCha+QFP6n+Bw/UjA0vutnH4JQfYzn6ANtw==",
+      "type": "package",
+      "path": "velopack/1.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README_NUGET.md",
+        "Velopack_200.png",
+        "lib/net10.0/Velopack.dll",
+        "lib/net10.0/Velopack.xml",
+        "lib/net472/Velopack.dll",
+        "lib/net472/Velopack.xml",
+        "lib/net8.0/Velopack.dll",
+        "lib/net8.0/Velopack.xml",
+        "lib/net9.0/Velopack.dll",
+        "lib/net9.0/Velopack.xml",
+        "lib/netstandard2.0/Velopack.dll",
+        "lib/netstandard2.0/Velopack.xml",
+        "velopack.1.2.0.nupkg.sha512",
+        "velopack.nuspec"
+      ]
     }
   },
   "projectFileDependencyGroups": {
     "net10.0-windows": [
-      "Microsoft.Web.WebView2 >= 1.0.3240.44"
+      "Microsoft.Web.WebView2 >= 1.0.3240.44",
+      "Velopack >= 1.2.0"
     ]
   },
   "packageFolders": {
@@ -176,6 +213,10 @@
           "Microsoft.Web.WebView2": {
             "target": "Package",
             "version": "[1.0.3240.44, )"
+          },
+          "Velopack": {
+            "target": "Package",
+            "version": "[1.2.0, )"
           }
         },
         "imports": [

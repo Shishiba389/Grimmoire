@@ -1,10 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "pVg9KYjcN3E=",
+  "dgSpecHash": "2Nk5vNDVoC8=",
   "success": true,
   "projectFilePath": "D:\\GRIMOIRE\\desktop\\Grimoire.Desktop.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\NguyenHoangDungE·ORI\\.nuget\\packages\\microsoft.web.webview2\\1.0.3240.44\\microsoft.web.webview2.1.0.3240.44.nupkg.sha512"
+    "C:\\Users\\NguyenHoangDungE·ORI\\.nuget\\packages\\microsoft.web.webview2\\1.0.3240.44\\microsoft.web.webview2.1.0.3240.44.nupkg.sha512",
+    "C:\\Users\\NguyenHoangDungE·ORI\\.nuget\\packages\\velopack\\1.2.0\\velopack.1.2.0.nupkg.sha512"
   ],
   "logs": []
 }

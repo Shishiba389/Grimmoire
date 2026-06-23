@@ -51,13 +51,13 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
     output_roots = output_roots_for_request(request, root, required_categories) if output_mode == OUTPUT_MODE_COPY else {}
     custom_ean = normalize_custom_ean(request.customEan)
     naming_mode = normalize_naming_mode(request.namingMode)
-    product_name = normalize_product_name(request.productName) if request.productNameContinuous else None
-    if product_name:
+    global_product_name = normalize_product_name(request.productName) if request.productNameContinuous else None
+    if global_product_name:
         naming_mode = NAMING_MODE_CONTINUOUS
     scanned = scan_root_folder(str(root))
     images_by_id = {image.id: image for image in scanned.images}
     selected_ids: set[str] = set()
-    selected: list[tuple[str, str, str, str | None]] = []
+    selected: list[tuple[str, str, str, str | None, str | None]] = []
 
     missing_ean_names: list[str] = []
     for assignment in request.assignments:
@@ -71,11 +71,15 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
             )
         selected_ids.add(assignment.id)
         image = images_by_id[assignment.id]
-        naming_ean = custom_ean or image.ean
+        assignment_ean = normalize_custom_ean(assignment.ean)
+        naming_ean = assignment_ean or custom_ean or image.ean
+        assignment_product_name = normalize_product_name(assignment.productName) if request.productNameContinuous else None
+        if assignment_product_name:
+            naming_mode = NAMING_MODE_CONTINUOUS
         if not naming_ean:
             missing_ean_names.append(image.name)
             continue
-        selected.append((naming_ean, assignment.category, assignment.id, assignment.categoryName))
+        selected.append((naming_ean, assignment.category, assignment.id, assignment.categoryName, assignment_product_name))
 
     if missing_ean_names and not selected:
         preview = ", ".join(missing_ean_names[:3])
@@ -90,14 +94,14 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
     priority_set: set[str] = set(request.priorityIds or [])
 
     if naming_mode in {NAMING_MODE_CONTINUOUS, NAMING_MODE_PREFIXED}:
-        grouped_by_ean: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+        grouped_by_ean: dict[tuple[str, str | None], dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
         category_names: dict[str, str | None] = {}
-        for ean, category, image_id, category_name in selected:
-            grouped_by_ean[ean][category].append(image_id)
+        for ean, category, image_id, category_name, item_product_name in selected:
+            grouped_by_ean[(ean, item_product_name or global_product_name)][category].append(image_id)
             category_names.setdefault(category, category_name)
 
         duplicate_groups = normalized_duplicate_groups(request)
-        for ean, category_groups in grouped_by_ean.items():
+        for (ean, group_product_name), category_groups in grouped_by_ean.items():
             has_priority = any(
                 img_id in priority_set
                 for cat_ids in category_groups.values()
@@ -139,8 +143,8 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
                     num = 1 if is_priority else continuous_counter
                     if not is_priority:
                         continuous_counter += 1
-                    if product_name:
-                        new_name = f"{ean}_{product_name}_{num}{suffix}"
+                    if group_product_name:
+                        new_name = f"{ean}_{group_product_name}_{num}{suffix}"
                     else:
                         new_name = f"{ean}_{num}{suffix}"
                     add_plan_item(
@@ -169,7 +173,7 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
         )
 
     grouped: dict[tuple[str, str], list[str]] = defaultdict(list)
-    for ean, category, image_id, _category_name in selected:
+    for ean, category, image_id, _category_name, _item_product_name in selected:
         grouped[(ean, category)].append(image_id)
 
     for (ean, category), image_ids in grouped.items():

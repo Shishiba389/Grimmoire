@@ -5,6 +5,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from .runtime import node_executable
+
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -127,7 +129,7 @@ def sharp_tool_status() -> dict[str, object]:
         "console.log(JSON.stringify(status));"
     )
     try:
-        result = subprocess.run(["node", "-e", code], cwd=project_root(), capture_output=True, text=True, timeout=20)
+        result = subprocess.run([node_executable(), "-e", code], cwd=project_root(), capture_output=True, text=True, timeout=20)
     except Exception as exc:
         return {
             "installed": False,
