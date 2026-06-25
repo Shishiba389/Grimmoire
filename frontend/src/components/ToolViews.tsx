@@ -4,3 +4,4 @@ export { ImagesCheckView } from "./ImagesCheckView";
 export { PackshotBrowserView } from "./PackshotBrowserView";
 export { EanSorterView } from "./ean-sorter/EanSorterView";
 export { EanRenamerView } from "./EanRenamerView";
+export { BulkWorkingView } from "./bulk-working/BulkWorkingView";

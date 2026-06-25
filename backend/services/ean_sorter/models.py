@@ -69,3 +69,34 @@ class SortResponse(BaseModel):
     report_path: str = ""
     errors: list[str] = Field(default_factory=list)
     unmatched: int = 0
+
+
+# ── Duplicate Detection ──
+
+class DuplicateGroup(BaseModel):
+    group_id: str
+    tier: str  # "ean" | "code" | "basename"
+    common_key: str
+    images: list[ImageRecord] = Field(default_factory=list)
+    suggested_folder_name: str = ""
+
+class DuplicateDetectionResponse(BaseModel):
+    groups: list[DuplicateGroup] = Field(default_factory=list)
+    total_images_grouped: int = 0
+    ungrouped_count: int = 0
+
+class GroupConfirmation(BaseModel):
+    group_id: str
+    action: str = "confirm"  # "confirm" | "skip"
+    folder_name: str | None = None
+    removed_paths: list[str] = Field(default_factory=list)
+
+class GroupIntoFoldersRequest(BaseModel):
+    folder: str
+    groups: list[GroupConfirmation] = Field(default_factory=list)
+
+class GroupIntoFoldersResponse(BaseModel):
+    created_folders: int = 0
+    moved_files: int = 0
+    folder_paths: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)

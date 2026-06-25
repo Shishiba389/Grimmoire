@@ -53,6 +53,12 @@ public sealed class BackendManager
             };
 
             psi.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+            var userDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Grimoire");
+            Directory.CreateDirectory(userDataDir);
+            psi.Environment["GRIMOIRE_DATA"] = userDataDir;
+            psi.Environment["GRIMOIRE_THUMB_CACHE"] = Path.Combine(userDataDir, "ImageCheckThumbs");
 
             _backendProcess = Process.Start(psi);
             if (_backendProcess == null)

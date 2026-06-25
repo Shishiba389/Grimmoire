@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { pickFolder } from "../ToolShared";
 import { useNotifications } from "../../contexts/NotificationContext";
 import { useJobPolling } from "./hooks";
 import { ScannerView } from "./ScannerView";
+import { DuplicateDetectionView } from "./DuplicateDetectionView";
 import { ReviewView } from "./ReviewView";
 import { CategorizeView } from "./CategorizeView";
 import type { SubView, MatchResult, SortJobRecord } from "./types";
@@ -10,12 +12,14 @@ import "./ean-sorter.css";
 
 export function EanSorterView() {
   const { notify } = useNotifications();
+  const navigate = useNavigate();
   const [folder, setFolder] = useState(() => localStorage.getItem("grimoire-ean-sorter-root") || "");
   const [query, setQuery] = useState("");
   const [activeView, setActiveView] = useState<SubView>("scanner");
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [rawSortJob, setRawSortJob] = useState<SortJobRecord | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [showBulkPrompt, setShowBulkPrompt] = useState(false);
 
   const sortJob = useJobPolling(
     rawSortJob,
@@ -23,6 +27,7 @@ export function EanSorterView() {
       notify("Sort completed", { type: "success" });
       setRawSortJob(completed);
       setActiveView("review");
+      setShowBulkPrompt(true);
     }, []),
     useCallback((failed: SortJobRecord) => {
       notify("Sort failed", { type: "error", message: failed.error || "Unknown error" });
@@ -31,7 +36,7 @@ export function EanSorterView() {
   );
 
   async function handlePickFolder() {
-    const picked = await pickFolder("Select product image folder");
+    const picked = await pickFolder("Select product image folder", folder);
     if (picked) {
       setFolder(picked);
       localStorage.setItem("grimoire-ean-sorter-root", picked);
@@ -49,6 +54,7 @@ export function EanSorterView() {
 
   const NAV_ITEMS: { key: SubView; label: string; icon: string }[] = [
     { key: "scanner", label: "Scanner", icon: "/icons/ean-sorter-sort.png" },
+    { key: "duplicates", label: "Duplicates", icon: "/icons/ean-sorter-sort.png" },
     { key: "review", label: "Review", icon: "/icons/ean-sorter-report.png" },
     { key: "categorize", label: "Categorize", icon: "/icons/ean-sorter-categorize.png" },
   ];
@@ -114,6 +120,17 @@ export function EanSorterView() {
           />
         )}
 
+        {activeView === "duplicates" && (
+          <DuplicateDetectionView
+            folder={folder}
+            notify={notify}
+            onGroupingComplete={() => {
+              notify("Images grouped into folders. Proceed with matching.", { type: "success" });
+              setActiveView("scanner");
+            }}
+          />
+        )}
+
         {activeView === "review" && (
           <ReviewView
             folder={folder}
@@ -128,6 +145,31 @@ export function EanSorterView() {
           <CategorizeView folder={folder} query={query} notify={notify} />
         )}
       </div>
+
+      {showBulkPrompt && (
+        <div className="sor-modal" onClick={(e) => { if (e.target === e.currentTarget) setShowBulkPrompt(false); }}>
+          <div className="sor-modal-card" style={{ maxWidth: 420, textAlign: "center" }}>
+            <div className="sor-panel-head"><h2>Sort Complete</h2></div>
+            <p style={{ margin: "16px 0" }}>
+              EAN folders have been created. Would you like to continue processing in <strong>Bulk Working</strong>?
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button className="sor-btn-secondary" onClick={() => setShowBulkPrompt(false)}>
+                Stay here
+              </button>
+              <button
+                className="sor-btn-primary"
+                onClick={() => {
+                  setShowBulkPrompt(false);
+                  navigate("/bulk-working", { state: { source: "sorter", folder } });
+                }}
+              >
+                Open Bulk Working
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {guideOpen && (
         <div className="sor-modal" onClick={(e) => { if (e.target === e.currentTarget) setGuideOpen(false); }}>

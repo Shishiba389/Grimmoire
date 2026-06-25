@@ -4,7 +4,7 @@ declare global {
   interface Window {
     __grimoire?: {
       isDesktop?: boolean;
-      pickFolder?: (title?: string) => Promise<string>;
+      pickFolder?: (title?: string, initialDir?: string) => Promise<string>;
       pickFile?: (title?: string, filters?: string) => Promise<string>;
       revealInExplorer?: (path: string) => void;
     };
@@ -72,7 +72,7 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function pickFolder(title: string, initialPath?: string): Promise<string> {
   if (window.__grimoire?.pickFolder) {
-    return (await window.__grimoire.pickFolder(title)) || "";
+    return (await window.__grimoire.pickFolder(title, initialPath)) || "";
   }
   const result = await apiJson<{ path: string }>("/api/local/select-folder", {
     method: "POST",

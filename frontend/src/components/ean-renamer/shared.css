@@ -1,0 +1,374 @@
+/* ── Shared EAN Renamer styles ──
+   Used by both EanRenamerView (inline CSS) and BulkWorkingView (import).
+   These are the reusable component styles: cards, output bar, hover preview,
+   CLIP overlay/badges, preview panel, tier badges, etc.
+*/
+
+/* ── Output bar ── */
+.ren-output-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ren-output-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.ren-output-fields {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow-x: auto;
+}
+.ren-output-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 150px;
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.ren-output-field:hover { border-color: var(--accent); }
+.ren-output-cat {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.ren-output-path {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.ren-output-clear {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+.ren-output-clear:hover { color: var(--red); }
+
+/* ── Card ── */
+.ren-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  transition: border-color 0.15s, opacity 0.15s, box-shadow 0.15s;
+  -webkit-user-drag: element;
+}
+.ren-card * { -webkit-user-drag: none; }
+.ren-card img { pointer-events: none; }
+.ren-card:hover { background: var(--bg-card-hover); }
+.ren-card-dragging { opacity: 0.45; border-color: var(--accent); }
+.ren-card-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  background: rgba(99, 102, 241, 0.06);
+  cursor: grab;
+}
+.ren-card-priority {
+  border-color: var(--amber, #f59e0b);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+}
+.ren-card-check { margin-top: 2px; flex-shrink: 0; accent-color: var(--accent); }
+.ren-card-thumb {
+  width: 64px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-input);
+}
+.ren-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ren-card-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ren-card-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ren-card-info { font-size: 10px; color: var(--text-muted); }
+.ren-card-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+.ren-chip {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.ren-chip-renamed { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+.ren-chip-match-ean { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.ren-chip-match-code { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+.ren-chip-match-name { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+.ren-card-match-product {
+  font-size: 9px;
+  color: var(--accent);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ren-card-grip {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ren-card:hover .ren-card-grip { opacity: 1; }
+
+/* ── Hover preview ── */
+.ren-hover-preview {
+  position: fixed;
+  z-index: 1000;
+  width: 320px;
+  pointer-events: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  animation: renHoverIn 0.12s ease;
+}
+.ren-hover-image-wrap {
+  width: 100%;
+  height: 360px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+}
+.ren-hover-image-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ren-hover-name {
+  margin-top: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.ren-hover-meta { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
+@keyframes renHoverIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── CLIP ── */
+.btn-clip {
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+.btn-clip:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-clip:disabled { opacity: 0.5; }
+.btn-danger { background: #ef4444; color: #fff; border: none; }
+.btn-danger:hover { filter: brightness(1.1); }
+
+.ren-clip-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.ren-clip-overlay-inner {
+  background: var(--bg-surface, #1e1e2e);
+  border-radius: 12px;
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.ren-clip-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(124,58,237,0.2);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: ren-spin 0.8s linear infinite;
+}
+@keyframes ren-spin { to { transform: rotate(360deg); } }
+.ren-clip-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(124,58,237,0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.ren-clip-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #6366f1);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.ren-chip-clip-auto {
+  background: rgba(34,197,94,0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.ren-chip-clip-review {
+  background: rgba(250,204,21,0.15);
+  color: #eab308;
+  border: 1px solid rgba(250,204,21,0.3);
+}
+.ren-chip-clip-uncertain {
+  background: rgba(239,68,68,0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.3);
+}
+
+/* ── Tier badges ── */
+.ren-tier-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ren-tier-ean { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.ren-tier-code { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+.ren-tier-name { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+.ren-tier-none { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+/* ── Preview panel (reusable) ── */
+.ren-preview-popover {
+  position: fixed;
+  left: 248px;
+  right: 28px;
+  bottom: 72px;
+  max-height: min(58vh, 560px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 45;
+  overflow: hidden;
+}
+.ren-preview-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ren-preview-popover-head strong { font-size: 13px; color: var(--text-primary); }
+.ren-preview-popover-actions { display: flex; align-items: center; gap: 8px; }
+.ren-resize-handle {
+  height: 5px;
+  cursor: ns-resize;
+  background: transparent;
+  position: relative;
+}
+.ren-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-light);
+  transition: background 0.15s;
+}
+.ren-resize-handle:hover::after { background: var(--accent); }
+.ren-preview-panel {
+  display: flex;
+  gap: 12px;
+  padding: 0 16px 12px;
+  overflow: hidden;
+}
+.ren-preview-table-wrap { flex: 1; overflow: auto; }
+.ren-preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ren-preview-table th {
+  text-align: left;
+  padding: 6px 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+}
+.ren-preview-table td {
+  padding: 4px 8px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+.ren-arrow { text-align: center; color: var(--text-muted); width: 30px; }
+.ren-table-empty { text-align: center; color: var(--text-muted); padding: 20px 8px !important; }
+.ren-plan-rename td { color: var(--text-primary); }
+.ren-plan-conflict td { color: var(--red); }
+.ren-plan-skip td { color: var(--text-muted); }
+.ren-summary-card {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+.ren-summary-item { display: flex; flex-direction: column; gap: 1px; }
+.ren-summary-item strong { font-size: 18px; color: var(--text-primary); }
+.ren-summary-item span { font-size: 11px; color: var(--text-secondary); }
+.ren-summary-green strong { color: var(--green); }
+.ren-summary-amber strong { color: var(--yellow); }

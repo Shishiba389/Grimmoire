@@ -230,13 +230,14 @@ public partial class MainWindow : Window
             // ── Native bridge for desktop features ──
             window.__grimoire = {
                 isDesktop: true,
-                pickFolder: function(title) {
+                pickFolder: function(title, initialDir) {
                     return new Promise(function(resolve) {
                         const id = 'pick_' + Date.now();
                         window.__grimoire._pending = window.__grimoire._pending || {};
                         window.__grimoire._pending[id] = resolve;
                         window.chrome.webview.postMessage(JSON.stringify({
-                            type: 'pickFolder', id: id, title: title || 'Select folder'
+                            type: 'pickFolder', id: id, title: title || 'Select folder',
+                            initialDir: initialDir || ''
                         }));
                     });
                 },
@@ -331,6 +332,7 @@ public partial class MainWindow : Window
     private async Task HandlePickFolder(string? id, System.Text.Json.JsonElement root)
     {
         var title = root.TryGetProperty("title", out var t) ? t.GetString() : "Select folder";
+        var initialDir = root.TryGetProperty("initialDir", out var d) ? d.GetString() : null;
 
         string? result = null;
         await Dispatcher.InvokeAsync(() =>
@@ -340,6 +342,8 @@ public partial class MainWindow : Window
                 Title = title,
                 Multiselect = false
             };
+            if (!string.IsNullOrEmpty(initialDir) && System.IO.Directory.Exists(initialDir))
+                dialog.InitialDirectory = initialDir;
             if (dialog.ShowDialog(this) == true)
                 result = dialog.FolderName;
         });
