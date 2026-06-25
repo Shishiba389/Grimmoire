@@ -84,4 +84,27 @@ export interface StatusFileData {
   duplicate_products: StatusProduct[];
 }
 
-export type SubView = "scanner" | "review" | "categorize";
+export type SubView = "scanner" | "duplicates" | "review" | "categorize";
+
+export interface DuplicateGroupImage {
+  path: string;
+  name: string;
+  source_folder: string;
+  relative_path: string;
+  size_bytes: number;
+}
+
+export interface DuplicateGroup {
+  group_id: string;
+  tier: "ean" | "code" | "basename";
+  common_key: string;
+  images: DuplicateGroupImage[];
+  suggested_folder_name: string;
+}
+
+export interface DuplicateDetectionResponse {
+  ok: boolean;
+  groups: DuplicateGroup[];
+  total_images_grouped: number;
+  ungrouped_count: number;
+}

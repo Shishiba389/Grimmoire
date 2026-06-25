@@ -25,6 +25,11 @@ from .core import EAN_PATTERN, extract_ean
 from .matcher import MasterDataMatcher
 from .models import (
     CollectLooseResponse,
+    DuplicateDetectionResponse,
+    DuplicateGroup,
+    GroupConfirmation,
+    GroupIntoFoldersRequest,
+    GroupIntoFoldersResponse,
     ImageRecord,
     MasterDataRow,
     MasterDataUploadResponse,
@@ -33,6 +38,7 @@ from .models import (
     SortRequest,
     SortResponse,
 )
+from .duplicate_detector import detect_duplicate_groups
 from .organizer import organize_by_ean
 from .report import REPORT_NAME, write_loose_report, write_sort_report
 from .scanner import collect_loose_images, deep_scan
@@ -182,6 +188,136 @@ def collect_loose(payload: dict) -> dict:
         write_loose_report(report_path, result["moved"])
 
     return {"ok": True, **result}
+
+
+# ---------------------------------------------------------------------------
+# Duplicate detection
+# ---------------------------------------------------------------------------
+
+_duplicate_results: dict[str, DuplicateDetectionResponse] = {}
+
+
+@router.post("/detect-duplicates")
+def detect_duplicates(payload: dict) -> dict:
+    folder = payload.get("folder", "")
+    threshold = float(payload.get("threshold", 0.8))
+    if not folder:
+        raise HTTPException(status_code=400, detail="folder is required")
+    root = Path(folder).expanduser()
+    if not root.is_dir():
+        raise HTTPException(status_code=400, detail=f"Not a folder: {root}")
+
+    scan_result = deep_scan(root)
+    images: list[ImageRecord] = scan_result["images"]
+    result = detect_duplicate_groups(images, threshold)
+
+    _duplicate_results[str(root)] = result
+    if len(_duplicate_results) > 20:
+        oldest_key = next(iter(_duplicate_results))
+        _duplicate_results.pop(oldest_key, None)
+
+    return {
+        "ok": True,
+        "groups": [g.model_dump() for g in result.groups],
+        "total_images_grouped": result.total_images_grouped,
+        "ungrouped_count": result.ungrouped_count,
+    }
+
+
+@router.post("/group-into-folders")
+def group_into_folders(payload: dict, background_tasks: BackgroundTasks) -> dict:
+    folder = payload.get("folder", "")
+    groups_data = payload.get("groups", [])
+    if not folder:
+        raise HTTPException(status_code=400, detail="folder is required")
+    root = Path(folder).expanduser()
+    if not root.is_dir():
+        raise HTTPException(status_code=400, detail=f"Not a folder: {root}")
+
+    job_id = str(uuid.uuid4())
+    job_store.create_job(
+        job_id=job_id,
+        job_type="ean_sorter_group",
+        original_filename=f"Group {len(groups_data)} sets",
+        input_path=folder,
+    )
+    job_store.update_job(job_id, status=JobStatus.running, summary={
+        "progress_percent": 0,
+        "current_file": "Starting...",
+        "created_folders": 0,
+        "moved_files": 0,
+    })
+
+    background_tasks.add_task(_execute_group_job, job_id, root, groups_data)
+    return job_store.get_job(job_id).model_dump(mode="json")
+
+
+def _execute_group_job(job_id: str, root: Path, groups_data: list[dict]) -> None:
+    import shutil
+
+    try:
+        created_folders = 0
+        moved_files = 0
+        folder_paths: list[str] = []
+        errors: list[str] = []
+        total = len(groups_data)
+
+        for i, g in enumerate(groups_data):
+            action = g.get("action", "confirm")
+            if action == "skip":
+                continue
+
+            folder_name = g.get("folder_name") or g.get("common_key", f"group_{i}")
+            removed_paths = set(g.get("removed_paths", []))
+            images = g.get("images", [])
+
+            dest_dir = root / folder_name
+            dest_dir.mkdir(exist_ok=True)
+            created_folders += 1
+            folder_paths.append(str(dest_dir))
+
+            for img_data in images:
+                img_path = img_data.get("path", "")
+                if img_path in removed_paths:
+                    continue
+                src = Path(img_path)
+                if not src.exists():
+                    errors.append(f"File not found: {src}")
+                    continue
+                # Skip if already in the destination
+                if src.parent == dest_dir:
+                    continue
+                target = dest_dir / src.name
+                if target.exists():
+                    stem, suffix = src.stem, src.suffix
+                    counter = 1
+                    while target.exists():
+                        target = dest_dir / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                try:
+                    shutil.move(str(src), str(target))
+                    moved_files += 1
+                except OSError as exc:
+                    errors.append(f"Failed to move '{src.name}': {exc}")
+
+            pct = int(round((i + 1) / max(total, 1) * 100))
+            job_store.update_job(job_id, status=JobStatus.running, summary={
+                "progress_percent": pct,
+                "current_file": f"Group {i + 1}/{total}",
+                "created_folders": created_folders,
+                "moved_files": moved_files,
+            })
+
+        job_store.update_job(job_id, status=JobStatus.completed, output_path=str(root), summary={
+            "progress_percent": 100,
+            "current_file": "Completed",
+            "created_folders": created_folders,
+            "moved_files": moved_files,
+            "folder_paths": folder_paths,
+            "errors": errors,
+        })
+    except Exception as exc:
+        job_store.update_job(job_id, status=JobStatus.failed, error=str(exc))
 
 
 # ---------------------------------------------------------------------------

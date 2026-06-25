@@ -41,6 +41,12 @@ PREFIX_BY_CATEGORY = {
     "lifestyle_normal": "Normal_Lifestyle",
     "artwork": "Artwork",
 }
+PRODUCT_CATEGORY_LABELS = {
+    "packshot": "Pack_Shot",
+    "lifestyle_human": "Lifestyle",
+    "lifestyle_normal": "Lifestyle",
+    "artwork": "Artwork",
+}
 COPY_WORKERS = 8
 
 
@@ -119,6 +125,30 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
                             image = images_by_id[image_id]
                             suffix = image.extension.lower()
                             new_name = f"{ean}_{prefix}_{num}{suffix}"
+                            add_plan_item(
+                                items,
+                                conflicts,
+                                output_roots,
+                                root,
+                                output_mode,
+                                ean,
+                                category,
+                                category_names.get(category),
+                                image_id,
+                                image.relativePath or image.name,
+                                image.name,
+                                suffix,
+                                new_name,
+                            )
+                    continue
+
+                if request.productNameWithCategory and group_product_name:
+                    category_label = product_category_label(category, category_names.get(category))
+                    for slot_ids, num in prefixed_number_slots(ids_in_category, priority_set, duplicate_groups):
+                        for image_id in slot_ids:
+                            image = images_by_id[image_id]
+                            suffix = image.extension.lower()
+                            new_name = f"{ean}_{group_product_name}_{category_label}_{num}{suffix}"
                             add_plan_item(
                                 items,
                                 conflicts,
@@ -416,6 +446,13 @@ def category_prefix(category: str, category_name: str | None = None) -> str:
         return "Video"
     safe_name = safe_custom_category_name(category_name or category)
     return safe_name.replace(" ", "_") or "Other"
+
+
+def product_category_label(category: str, category_name: str | None = None) -> str:
+    if category in PRODUCT_CATEGORY_LABELS:
+        return PRODUCT_CATEGORY_LABELS[category]
+    safe_name = safe_custom_category_name(category_name or category)
+    return "_".join(part.capitalize() for part in safe_name.split("_")) or "Other"
 
 
 def category_output_parts(ean: str, category: str, category_name: str | None = None) -> tuple[str, ...]:

@@ -131,6 +131,7 @@ class BatchRenameRequest(BaseModel):
     customEan: str | None = None
     productName: str | None = None
     productNameContinuous: bool = False
+    productNameWithCategory: bool = False
     namingMode: str = "per_category"
     categoryOrder: list[str] = Field(default_factory=list)
     assignments: list[BatchAssignment] = Field(default_factory=list)

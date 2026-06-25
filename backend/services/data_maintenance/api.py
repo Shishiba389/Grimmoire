@@ -60,13 +60,15 @@ job_store = JobStore()
 audit_history_store = AuditHistoryStore()
 change_request_store = ChangeRequestStore()
 
-MASTER_DATA_DIR = Path(os.environ.get("GRIMOIRE_DATA", Path.home() / ".grimoire")) / "master_data_uploads"
+MASTER_DATA_DIR = settings.user_data_root / "master_data_uploads"
 MASTER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 MASTER_DATA_STATE_DIR = MASTER_DATA_DIR / ".state"
 MASTER_DATA_STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 IMAGE_CHECK_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".avif"}
-IMAGE_CHECK_THUMB_DIR = Path(os.environ.get("GRIMOIRE_THUMB_CACHE", Path.home() / "AppData" / "Local" / "Grimoire" / "ImageCheckThumbs"))
+IMAGE_CHECK_THUMB_DIR = Path(
+    os.environ.get("GRIMOIRE_THUMB_CACHE", settings.user_data_root / "ImageCheckThumbs")
+).expanduser().resolve()
 IMAGE_CHECK_THUMB_MAX = 420
 
 

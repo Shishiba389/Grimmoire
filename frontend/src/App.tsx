@@ -20,6 +20,7 @@ import {
   ImagesCheckView as RealImagesCheckView,
   PackshotBrowserView as RealPackshotBrowserView,
   ImageEditView as RealImageEditView,
+  BulkWorkingView as RealBulkWorkingView,
 } from "./components/ToolViews";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { apiJson, apiUrl } from "./components/ToolShared";
@@ -99,6 +100,17 @@ function IconEANRenamer() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z" />
       <path d="M15 5l4 4" />
+    </svg>
+  );
+}
+
+function IconBulkWorking() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
     </svg>
   );
 }
@@ -237,6 +249,7 @@ const SHORTCUTS: Record<string, string> = {
   "/packshot-browser": "5",
   "/ean-sorter": "6",
   "/ean-renamer": "7",
+  "/bulk-working": "8",
   "/guide": "9",
   "/credits": "0",
 };
@@ -251,6 +264,7 @@ const NAV_ITEMS = [
   { to: "/packshot-browser", label: "Packshot Browser", icon: IconPackshotBrowser, img: "/icons/ean-sorter-gallery.png", mono: false },
   { to: "/ean-sorter", label: "EAN Sorter", icon: IconEANSorter, img: "/icons/ean-sorter.png", mono: true },
   { to: "/ean-renamer", label: "EAN Renamer", icon: IconEANRenamer, img: "/icons/ean-renamer.png", mono: false },
+  { to: "/bulk-working", label: "Bulk Working", icon: IconBulkWorking, img: null, mono: false },
   { to: "/guide", label: "Guide", icon: IconGuide, img: null, mono: false },
   { to: "/credits", label: "Credits", icon: IconCredits, img: null, mono: false },
 ];
@@ -328,6 +342,7 @@ const ROUTE_NAMES: Record<string, string> = {
   "/packshot-browser": "Packshot Browser",
   "/ean-sorter": "EAN Sorter",
   "/ean-renamer": "EAN Renamer",
+  "/bulk-working": "Bulk Working",
   "/guide": "Guide",
   "/credits": "Credits",
 };
@@ -449,7 +464,8 @@ const COMMANDS: CommandItem[] = [
   { to: "/images-check", title: "Images Check", desc: "Scan folders and delete rejected images", keywords: ["images", "check", "delete", "clean", "review", "gallery", "slideshow"] },
   { to: "/packshot-browser", title: "Packshot Browser", desc: "Browse synced packshot folders, hover preview, select, copy, and export reports", keywords: ["packshot", "browser", "finder", "preview", "hover", "onedrive", "copy", "ean"] },
   { to: "/ean-sorter", title: "EAN Sorter", desc: "3-tier smart matching and auto-sort into EAN folders", keywords: ["ean", "sort", "sorter", "barcode", "folder", "status", "match", "master", "tier"] },
-  { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images with master data matching", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name", "bulk", "master", "match"] },
+  { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images with master data matching", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name", "master", "match"] },
+  { to: "/bulk-working", title: "Bulk Working", desc: "Process multiple EAN folders with kanban, CLIP, and batch renaming", keywords: ["bulk", "working", "batch", "kanban", "clip", "folder", "ean", "rename"] },
   { to: "/guide", title: "Guide", desc: "When to use each tab and how to handle common cases", keywords: ["guide", "help", "how", "workflow", "tab", "case", "huong dan"] },
   { to: "/credits", title: "Credits", desc: "MDX team credits", keywords: ["credits", "team", "about"] },
 ];
@@ -1654,6 +1670,14 @@ function AppShell() {
             element={
               <ErrorBoundary fallbackLabel="EAN Renamer encountered an error">
                 <RealEanRenamerView />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/bulk-working"
+            element={
+              <ErrorBoundary fallbackLabel="Bulk Working encountered an error">
+                <RealBulkWorkingView />
               </ErrorBoundary>
             }
           />

@@ -1,11 +1,9 @@
 import { memo, type RefObject } from "react";
-import type { RenImage, ClipProgress, SettingsState, OutputMode, NamingMode, ViewMode, BulkWorkItem, ImageMatchItem } from "./types";
+import type { RenImage, ClipProgress, SettingsState, OutputMode, NamingMode, ImageMatchItem } from "./types";
 
 type ImageMatchSummary = { matched: number; total: number } | null;
 
 type Props = {
-  viewMode: ViewMode;
-  setViewMode: (m: ViewMode) => void;
   folderPath: string;
   detectedEan: string;
   customEan: string;
@@ -27,8 +25,6 @@ type Props = {
   settings: SettingsState;
   setSettings: React.Dispatch<React.SetStateAction<SettingsState>>;
   eanValid: boolean;
-  bulkRootPath: string;
-  bulkItems: BulkWorkItem[];
   settingsRef: RefObject<HTMLDivElement | null>;
   onPickFolder: () => void;
   onOpenPath: () => void;
@@ -37,42 +33,32 @@ type Props = {
   onAutoSort: () => void;
   onAutoClassify: () => void;
   onCancelClassify: () => void;
-  onReturnToBulk: () => void;
-  onLoadBulkFolder: (path: string) => void;
+  onMasterPick: () => void;
 };
 
 export const TopBar = memo(function TopBar(props: Props) {
   const {
-    viewMode, setViewMode, folderPath, detectedEan, customEan, setCustomEan,
+    folderPath, detectedEan, customEan, setCustomEan,
     productName, setProductName, productNameContinuous, setProductNameContinuous,
     images, totalImages, selectedCount, masterSessionId, imageMatches,
     imageMatchSummary, clipBusy, clipProgress, showSettings, setShowSettings,
-    settings, setSettings, eanValid, bulkRootPath, bulkItems, settingsRef,
+    settings, setSettings, eanValid, settingsRef,
     onPickFolder, onOpenPath, onRefresh, onMatchImages, onAutoSort,
-    onAutoClassify, onCancelClassify, onReturnToBulk, onLoadBulkFolder,
+    onAutoClassify, onCancelClassify, onMasterPick,
   } = props;
 
   return (
     <div className="ren-topbar">
       <div className="ren-topbar-row">
-        <div className="ren-mode-switch">
-          <button className={viewMode === "single" ? "active" : ""} onClick={() => setViewMode("single")}>Single Folder</button>
-          <button
-            className={viewMode === "bulk" ? "active" : ""}
-            onClick={() => {
-              onReturnToBulk();
-              if ((bulkRootPath || folderPath) && bulkItems.length === 0) onLoadBulkFolder(bulkRootPath || folderPath);
-            }}
-          >
-            Bulk Working
-          </button>
-        </div>
         <div className="ren-folder-group">
           <input className="ren-path-input" readOnly value={folderPath} placeholder="No folder selected" />
           <button className="btn btn-primary btn-sm" onClick={onPickFolder}>Pick Folder</button>
           <button className="btn btn-secondary btn-sm" onClick={onOpenPath} disabled={!folderPath}>Open</button>
           <button className="btn btn-secondary btn-sm" onClick={onRefresh} disabled={!folderPath}>Refresh</button>
-          {masterSessionId && viewMode === "single" && (
+          <button className="btn btn-secondary btn-sm" onClick={onMasterPick}>
+            {masterSessionId ? "Master ✓" : "Master Data"}
+          </button>
+          {masterSessionId && (
             <>
               <button
                 className="btn btn-secondary btn-sm"

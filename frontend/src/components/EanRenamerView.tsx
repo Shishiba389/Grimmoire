@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiJson } from "./ToolShared";
+import { apiJson, pickFolder as pickFolderDialog } from "./ToolShared";
 import { useNotifications } from "../contexts/NotificationContext";
 import {
-  HoverPreview, ClipOverlay, MasterDataMatchModal, OutputBar,
-  BulkActiveIndicator, PreviewPanel, TopBar, Footer, PreviewModal,
-  BulkWorkingView, ImageCard,
+  HoverPreview, ClipOverlay, OutputBar,
+  PreviewPanel, TopBar, Footer, PreviewModal,
+  ImageCard,
 } from "./ean-renamer";
 import type {
-  RenImage, FolderResult, BulkFolderItem, BulkScanResult,
-  BulkMappingEntry, BulkMatchResult, BulkMatchResponse,
+  RenImage, FolderResult,
   MasterDataUploadResponse, ImageMatchItem, ImageMatchResponse,
-  BulkWorkItem, KanbanColumn, DuplicateGroup, DuplicateBuckets, DuplicateLabels,
+  KanbanColumn, DuplicateGroup, DuplicateBuckets, DuplicateLabels,
   NamingMode, OutputMode, RenamePlanItem, RenameResult, SettingsState,
-  ViewMode, HoverPreviewState, PriorityFirstMap,
+  HoverPreviewState, PriorityFirstMap,
   ClipProgress, ClipImageClassification, ClipResult,
 } from "./ean-renamer/types";
 import {
@@ -42,48 +41,6 @@ function normalizeOutputMode(mode: OutputMode): string {
   return mode === "in-folder" ? "rename" : "copy";
 }
 
-function extractEanCandidate(value: string): string {
-  const match = value.match(/\b\d{8,14}\b/);
-  return match?.[0] || "";
-}
-
-function normalizeLookup(value: string): string {
-  return value.toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function mappingMatchesItem(entry: BulkMappingEntry, item: BulkFolderItem): boolean {
-  const source = normalizeLookup(entry.source || "");
-  if (!source) return false;
-  const targets = [
-    item.name,
-    item.relativePath,
-    ...item.sampleImages.map((image) => image.name),
-    ...item.sampleImages.map((image) => image.relativePath),
-  ].map(normalizeLookup);
-  return targets.some((target) => target.includes(source) || source.includes(target));
-}
-
-function applyMappingsToBulkItems(
-  items: BulkWorkItem[],
-  entries: BulkMappingEntry[],
-  source: "file" | "master",
-): BulkWorkItem[] {
-  return items.map((item) => {
-    const eanFromFolder = extractEanCandidate(`${item.name} ${item.relativePath}`);
-    const matched =
-      entries.find((entry) => entry.ean && eanFromFolder && entry.ean.includes(eanFromFolder)) ||
-      entries.find((entry) => mappingMatchesItem(entry, item)) ||
-      entries.find((entry) => entry.ean && item.sampleImages.some((image) => normalizeLookup(image.name).includes(normalizeLookup(entry.ean || ""))));
-    if (!matched) return item;
-    return {
-      ...item,
-      ean: matched.ean || item.ean,
-      productName: matched.productName || item.productName,
-      matchSource: source,
-    };
-  });
-}
-
 /* ── Component ── */
 
 export function EanRenamerView() {
@@ -103,17 +60,9 @@ export function EanRenamerView() {
   const [outputFolders, setOutputFolders] = useState<Record<string, string>>({});
   const [priorityFirst, setPriorityFirst] = useState<PriorityFirstMap>({});
   const [priorityEnabled, setPriorityEnabled] = useState<Record<string, boolean>>({});
-  const [viewMode, setViewMode] = useState<ViewMode>("single");
-  const [bulkRootPath, setBulkRootPath] = useState("");
-  const [bulkItems, setBulkItems] = useState<BulkWorkItem[]>([]);
-  const [bulkWarnings, setBulkWarnings] = useState<string[]>([]);
-  const [activeBulkKey, setActiveBulkKey] = useState<string | null>(null);
   const [masterSessionId, setMasterSessionId] = useState("");
-  const [masterRowCount, setMasterRowCount] = useState(0);
-  const [masterColumns, setMasterColumns] = useState<string[]>([]);
-  const [showMatchModal, setShowMatchModal] = useState(false);
-  const [bulkMatchResults, setBulkMatchResults] = useState<BulkMatchResult[]>([]);
-  const [bulkMatchSummary, setBulkMatchSummary] = useState<BulkMatchResponse["summary"] | null>(null);
+  const [, setMasterRowCount] = useState(0);
+  const [, setMasterColumns] = useState<string[]>([]);
 
   /* state: per-image matching */
   const [imageMatches, setImageMatches] = useState<Map<string, ImageMatchItem>>(new Map());
@@ -148,7 +97,6 @@ export function EanRenamerView() {
   /* refs */
   const resizeRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
-  const mappingInputRef = useRef<HTMLInputElement>(null);
   const masterInputRef = useRef<HTMLInputElement>(null);
 
   const imageMap = useMemo(() => {
@@ -169,19 +117,13 @@ export function EanRenamerView() {
     () => columns.filter((col) => col.key !== "unsorted" && col.key !== "duplicate"),
     [columns]
   );
-  const bulkReadyCount = bulkItems.filter((item) => item.ean.trim()).length;
-  const bulkMissingCount = bulkItems.length - bulkReadyCount;
-  const bulkDoneCount = bulkItems.filter((item) => item.status === "done").length;
-  const activeBulkItem = activeBulkKey ? bulkItems.find((item) => item.key === activeBulkKey) || null : null;
-
   /* ── Folder operations ── */
 
   async function handlePickFolder() {
     try {
-      const result = await apiJson<{ folderPath: string }>("/api/ean-renamer/folder/pick", { method: "POST" });
-      if (result.folderPath) {
-        if (viewMode === "bulk") await loadBulkFolder(result.folderPath);
-        else await loadFolder(result.folderPath);
+      const picked = await pickFolderDialog("Select EAN image folder", folderPath);
+      if (picked) {
+        await loadFolder(picked);
       }
     } catch (e) {
       notify("Failed to pick folder", { type: "error", message: e instanceof Error ? e.message : String(e) });
@@ -415,83 +357,12 @@ export function EanRenamerView() {
 
   async function handleRefresh() {
     if (!folderPath) return;
-    if (viewMode === "bulk") await loadBulkFolder(bulkRootPath || folderPath);
-    else await loadFolder(folderPath);
+    await loadFolder(folderPath);
   }
 
   function handleOpenPath() {
     if (folderPath && window.__grimoire?.revealInExplorer) {
       window.__grimoire.revealInExplorer(folderPath);
-    }
-  }
-
-  async function loadBulkFolder(path: string) {
-    try {
-      const result = await apiJson<BulkScanResult>("/api/ean-renamer/folder/bulk-scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderPath: path }),
-      });
-      setFolderPath(result.folderPath);
-      setBulkRootPath(result.folderPath);
-      setRenamePlan([]);
-      setBulkWarnings([]);
-      setActiveBulkKey(null);
-      const newItems = result.folders.map((item) => {
-        const ean = extractEanCandidate(`${item.name} ${item.relativePath}`);
-        return {
-          ...item,
-          ean,
-          productName: "",
-          matchSource: (ean ? "folder" : "missing") as BulkWorkItem["matchSource"],
-          matchTier: null as BulkWorkItem["matchTier"],
-          matchConfidence: null as BulkWorkItem["matchConfidence"],
-          status: "pending" as const,
-        };
-      });
-      setBulkItems(newItems);
-      if (masterSessionId) {
-        void rematchBulkItems(newItems, masterSessionId);
-      }
-      notify("Bulk scan complete", { type: "success", message: `${result.totalFolders} folders, ${result.totalImages} images` });
-    } catch (e) {
-      notify("Bulk scan failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
-  function updateBulkItem(key: string, patch: Partial<Pick<BulkWorkItem, "ean" | "productName" | "matchSource" | "status">>) {
-    setBulkItems((prev) =>
-      prev.map((item) => {
-        if (item.key !== key) return item;
-        const isManual = patch.matchSource === "manual" || (!patch.matchSource && (patch.ean || patch.productName));
-        return {
-          ...item,
-          ...patch,
-          matchSource: patch.matchSource || (isManual ? "manual" : item.matchSource),
-          matchTier: isManual ? null : item.matchTier,
-          matchConfidence: isManual ? null : item.matchConfidence,
-        };
-      })
-    );
-  }
-
-  async function handleBulkImportLegacy(file: File | undefined, source: "file" | "master") {
-    if (!file) return;
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const result = await apiJson<{ entries: BulkMappingEntry[]; warnings: string[] }>("/api/ean-renamer/bulk/import-map", {
-        method: "POST",
-        body: form,
-      });
-      setBulkItems((prev) => applyMappingsToBulkItems(prev, result.entries, source));
-      setBulkWarnings(result.warnings || []);
-      notify(source === "master" ? "Master data matched" : "Mapping file imported", {
-        type: result.entries.length ? "success" : "warning",
-        message: `${result.entries.length} rows detected`,
-      });
-    } catch (e) {
-      notify("Import failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -507,13 +378,7 @@ export function EanRenamerView() {
       setMasterSessionId(res.session_id);
       setMasterRowCount(res.row_count);
       setMasterColumns(res.columns_detected);
-      if (res.warnings.length > 0) {
-        setBulkWarnings(res.warnings);
-      }
       notify(`Master data loaded: ${res.row_count} rows`, { type: "success", message: res.columns_detected.join(" · ") });
-      if (bulkItems.length > 0) {
-        await rematchBulkItems(bulkItems, res.session_id);
-      }
     } catch (e) {
       notify("Master data upload failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
     }
@@ -538,183 +403,20 @@ export function EanRenamerView() {
       setMasterSessionId(res.session_id);
       setMasterRowCount(res.row_count);
       setMasterColumns(res.columns_detected);
-      if (res.warnings.length > 0) {
-        setBulkWarnings(res.warnings);
-      }
       notify(`Master data loaded: ${res.row_count} rows`, { type: "success", message: res.columns_detected.join(" · ") });
-      if (bulkItems.length > 0) {
-        await rematchBulkItems(bulkItems, res.session_id);
-      }
     } catch (e) {
       notify("Master data upload failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }
-
-  async function rematchBulkItems(items: BulkWorkItem[], sessionId: string) {
-    try {
-      const res = await apiJson<BulkMatchResponse>("/api/ean-renamer/bulk/match-master", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionId,
-          folders: items.map((item) => ({
-            key: item.key,
-            name: item.name,
-            relativePath: item.relativePath,
-            sampleImageNames: item.images.length > 0
-              ? item.images.slice(0, 5).map((img) => img.name)
-              : item.sampleImages.slice(0, 5).map((img) => img.name),
-          })),
-        }),
-      });
-      setBulkMatchResults(res.results);
-      setBulkMatchSummary(res.summary);
-      applyMatchResultsToItems(res.results);
-      setShowMatchModal(true);
-      void matchBulkImages(items, sessionId);
-    } catch (e) {
-      notify("Match failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
-    }
-  }
-
-  async function matchBulkImages(items: BulkWorkItem[], sessionId: string) {
-    const promises = items.map(async (item) => {
-      const imgs = item.images.length > 0 ? item.images : item.sampleImages;
-      const imageNames = imgs.map((img) => img.name);
-      if (imageNames.length === 0) return { key: item.key, matches: [] as ImageMatchItem[] };
-      try {
-        const res = await apiJson<ImageMatchResponse>("/api/ean-renamer/match-images", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: sessionId, image_names: imageNames }),
-        });
-        return { key: item.key, matches: res.matches };
-      } catch {
-        return { key: item.key, matches: [] as ImageMatchItem[] };
-      }
-    });
-    const results = await Promise.all(promises);
-    const matchMap = new Map(results.map((r) => [r.key, r.matches]));
-    setBulkItems((prev) =>
-      prev.map((item) => {
-        const matches = matchMap.get(item.key);
-        return matches && matches.length > 0 ? { ...item, imageMatches: matches } : item;
-      }),
-    );
-  }
-
-  function applyMatchResultsToItems(results: BulkMatchResult[]) {
-    const resultMap = new Map(results.map((r) => [r.key, r]));
-    setBulkItems((prev) =>
-      prev.map((item) => {
-        if (item.matchSource === "manual") return item;
-        const match = resultMap.get(item.key);
-        if (!match || match.status === "unmatched") return item;
-        const idx = match.selected_index ?? 0;
-        const best = match.candidates[idx];
-        if (!best) return item;
-        return {
-          ...item,
-          ean: best.ean || item.ean,
-          productName: best.product_name || item.productName,
-          matchSource: "master" as const,
-          matchTier: best.tier,
-          matchConfidence: best.confidence,
-        };
-      }),
-    );
-  }
-
-  function handleMatchModalSelect(key: string, candidateIdx: number) {
-    setBulkMatchResults((prev) =>
-      prev.map((r) =>
-        r.key === key
-          ? { ...r, selected_index: candidateIdx, status: "matched" as const }
-          : r,
-      ),
-    );
-  }
-
-  function confirmMatchResults() {
-    applyMatchResultsToItems(bulkMatchResults);
-    setShowMatchModal(false);
-  }
-
-  async function openBulkItemSingle(item: BulkWorkItem) {
-    setActiveBulkKey(item.key);
-    setBulkItems((prev) =>
-      prev.map((entry) =>
-        entry.key === item.key
-          ? { ...entry, status: "active" }
-          : entry.status === "active"
-            ? { ...entry, status: "pending" }
-            : entry
-      )
-    );
-    const loadedFolder = await loadFolder(item.folderPath);
-    if (!loadedFolder) return;
-    setCustomEan(item.ean.trim());
-    setProductName(item.productName.trim());
-    setProductNameContinuous(!!item.productName.trim());
-    setViewMode("single");
-    await startClipClassification(loadedFolder.folderPath, loadedFolder.images);
-  }
-
-  function nextBulkItem(afterKey?: string | null) {
-    if (bulkItems.length === 0) return null;
-    const startIndex = afterKey ? bulkItems.findIndex((item) => item.key === afterKey) : -1;
-    const ordered = [...bulkItems.slice(startIndex + 1), ...bulkItems.slice(0, Math.max(0, startIndex + 1))];
-    return ordered.find((item) => item.key !== afterKey && item.status !== "done" && item.status !== "skipped") || null;
-  }
-
-  async function openNextBulkBatch() {
-    const next = nextBulkItem(activeBulkKey);
-    if (!next) {
-      notify("All bulk batches are complete", { type: "success" });
-      setViewMode("bulk");
-      return;
-    }
-    await openBulkItemSingle(next);
-  }
-
-  function markActiveBulkDone() {
-    if (!activeBulkKey) return;
-    setBulkItems((prev) =>
-      prev.map((item) =>
-        item.key === activeBulkKey
-          ? {
-              ...item,
-              ean: customEan.trim() || item.ean,
-              productName: productName.trim() || item.productName,
-              matchSource: customEan.trim() || productName.trim() ? "manual" : item.matchSource,
-              status: "done",
-            }
-          : item
-      )
-    );
-  }
-
-  function skipBulkItem(key: string) {
-    setBulkItems((prev) => prev.map((item) => (item.key === key ? { ...item, status: "skipped" } : item)));
-    if (activeBulkKey === key) setActiveBulkKey(null);
-  }
-
-  function returnToBulkWorking() {
-    if (bulkRootPath) setFolderPath(bulkRootPath);
-    setViewMode("bulk");
   }
 
   /* ── Output folder picking ── */
 
   async function handlePickOutput(category: string) {
     try {
-      const result = await apiJson<{ folderPath: string }>("/api/ean-renamer/folder/pick-output", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, initialFolderPath: outputFolders[category] || folderPath }),
-      });
-      if (result.folderPath) {
-        setOutputFolders((prev) => ({ ...prev, [category]: result.folderPath }));
+      const initial = outputFolders[category] || folderPath;
+      const picked = await pickFolderDialog("Select output folder for renamed copies", initial);
+      if (picked) {
+        setOutputFolders((prev) => ({ ...prev, [category]: picked }));
       }
     } catch (e) {
       notify("Failed to pick output folder", { type: "error", message: e instanceof Error ? e.message : String(e) });
@@ -1178,12 +880,9 @@ export function EanRenamerView() {
       const renamed = result.renamed ?? result.items.length;
       const skipped = result.skipped ?? result.skippedCount ?? 0;
       const conflicts = Array.isArray(result.conflicts) ? result.conflicts.length : result.conflicts ?? 0;
-      markActiveBulkDone();
       notify("Rename complete", {
         type: conflicts > 0 ? "warning" : "success",
-        message: activeBulkKey
-          ? `${renamed} processed, ${skipped} skipped, ${conflicts} conflicts. Batch marked done.`
-          : `${renamed} processed, ${skipped} skipped, ${conflicts} conflicts`,
+        message: `${renamed} processed, ${skipped} skipped, ${conflicts} conflicts`,
       });
     } catch (e) {
       notify("Rename failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
@@ -1301,36 +1000,13 @@ export function EanRenamerView() {
     );
   }
 
-  function renderBulkWorking() {
-    return (
-      <BulkWorkingView
-        bulkItems={bulkItems} bulkWarnings={bulkWarnings}
-        bulkReadyCount={bulkReadyCount} bulkMissingCount={bulkMissingCount}
-        bulkDoneCount={bulkDoneCount} masterSessionId={masterSessionId}
-        masterRowCount={masterRowCount} masterColumns={masterColumns}
-        bulkMatchSummary={bulkMatchSummary} busy={busy}
-        bulkRootPath={bulkRootPath} folderPath={folderPath}
-        mappingInputRef={mappingInputRef} masterInputRef={masterInputRef}
-        onImportLegacy={(file, source) => void handleBulkImportLegacy(file, source)}
-        onMasterUpload={(file) => void handleMasterUpload(file)}
-        onMasterPick={() => void handleMasterPick()}
-        onShowMatchModal={() => setShowMatchModal(true)}
-        onOpenNextBatch={() => void openNextBulkBatch()}
-        onLoadBulkFolder={loadBulkFolder}
-        onUpdateItem={updateBulkItem}
-        onOpenItemSingle={openBulkItemSingle}
-        onSkipItem={skipBulkItem}
-      />
-    );
-  }
-
   return (
     <div className="ren-root">
       <style>{CSS}</style>
+      <input ref={masterInputRef} type="file" hidden accept=".xlsx,.xls,.csv" onChange={(e) => void handleMasterUpload(e.currentTarget.files?.[0])} />
 
       {/* ── Top bar ── */}
       <TopBar
-        viewMode={viewMode} setViewMode={setViewMode}
         folderPath={folderPath} detectedEan={detectedEan}
         customEan={customEan} setCustomEan={setCustomEan}
         productName={productName} setProductName={setProductName}
@@ -1341,13 +1017,13 @@ export function EanRenamerView() {
         clipBusy={clipBusy} clipProgress={clipProgress}
         showSettings={showSettings} setShowSettings={setShowSettings}
         settings={settings} setSettings={setSettings}
-        eanValid={eanValid} bulkRootPath={bulkRootPath} bulkItems={bulkItems}
+        eanValid={eanValid}
         settingsRef={settingsRef}
         onPickFolder={handlePickFolder} onOpenPath={handleOpenPath}
         onRefresh={handleRefresh} onMatchImages={matchImagesWithMaster}
         onAutoSort={handleAutoSort} onAutoClassify={handleAutoClassify}
-        onCancelClassify={handleCancelClassify} onReturnToBulk={returnToBulkWorking}
-        onLoadBulkFolder={loadBulkFolder}
+        onCancelClassify={handleCancelClassify}
+        onMasterPick={() => void handleMasterPick()}
       />
 
       {/* ── Output bar ── */}
@@ -1359,20 +1035,11 @@ export function EanRenamerView() {
       />
 
       {/* ── Kanban board ── */}
-      {viewMode === "single" && activeBulkItem && (
-        <BulkActiveIndicator
-          item={activeBulkItem}
-          onReturnToBulk={returnToBulkWorking}
-          onNextBatch={() => void openNextBulkBatch()}
-        />
-      )}
-
       {clipBusy && (
         <ClipOverlay progress={clipProgress} onCancel={handleCancelClassify} />
       )}
 
-      {viewMode === "bulk" ? renderBulkWorking() : (
-        <div className="ren-board">
+      <div className="ren-board">
         {columns.map((col) => {
           const isDragSourceColumn = dragIds.length > 0 && dragSourceKey === col.key;
           const isDropColumn = dragIds.length > 0 && dropTarget === col.key && col.key !== "duplicate";
@@ -1544,7 +1211,6 @@ export function EanRenamerView() {
         </button>
       </div>
 
-      )}
       {/* ── Footer / Preview panel ── */}
       {hoverPreview && (
         <HoverPreview image={hoverPreview.image} x={hoverPreview.x} y={hoverPreview.y} folderPath={folderPath} />
@@ -1558,7 +1224,7 @@ export function EanRenamerView() {
         </div>
       )}
 
-      {previewExpanded && viewMode === "single" && (
+      {previewExpanded && (
         <PreviewPanel
           renamePlan={renamePlan}
           planStats={planStats}
@@ -1573,12 +1239,11 @@ export function EanRenamerView() {
       )}
 
       <Footer
-        viewMode={viewMode} previewExpanded={previewExpanded}
+        previewExpanded={previewExpanded}
         setPreviewExpanded={setPreviewExpanded} busy={busy}
         folderPath={folderPath} settings={settings}
-        bulkRootPath={bulkRootPath} bulkItems={bulkItems} lastLogPath={lastLogPath}
+        lastLogPath={lastLogPath}
         onPreview={handlePreview} onApply={handleApply} onUndo={handleUndo}
-        onLoadBulkFolder={loadBulkFolder} onOpenNextBatch={() => void openNextBulkBatch()}
       />
 
       {/* ── Preview Modal ── */}
@@ -1590,16 +1255,6 @@ export function EanRenamerView() {
         />
       )}
 
-      {/* ── Match Results Modal ── */}
-      {showMatchModal && bulkMatchResults.length > 0 && (
-        <MasterDataMatchModal
-          results={bulkMatchResults}
-          summary={bulkMatchSummary}
-          onSelect={handleMatchModalSelect}
-          onConfirm={confirmMatchResults}
-          onClose={() => setShowMatchModal(false)}
-        />
-      )}
     </div>
   );
 }
