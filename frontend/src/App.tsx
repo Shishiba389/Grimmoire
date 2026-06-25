@@ -21,6 +21,7 @@ import {
   PackshotBrowserView as RealPackshotBrowserView,
   ImageEditView as RealImageEditView,
 } from "./components/ToolViews";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { apiJson, apiUrl } from "./components/ToolShared";
 
 /* â”€â”€â”€ SVG Icons â”€â”€â”€ */
@@ -439,7 +440,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.23.3";
+const APP_VERSION = "2026.06.24.2";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
@@ -447,8 +448,8 @@ const COMMANDS: CommandItem[] = [
   { to: "/image-edit", title: "Image Edit", desc: "Batch resize, canvas, upscale, export", keywords: ["image", "edit", "upscale", "resize", "background", "canvas"] },
   { to: "/images-check", title: "Images Check", desc: "Scan folders and delete rejected images", keywords: ["images", "check", "delete", "clean", "review", "gallery", "slideshow"] },
   { to: "/packshot-browser", title: "Packshot Browser", desc: "Browse synced packshot folders, hover preview, select, copy, and export reports", keywords: ["packshot", "browser", "finder", "preview", "hover", "onedrive", "copy", "ean"] },
-  { to: "/ean-sorter", title: "EAN Sorter", desc: "Scan EANs and sort files into folders", keywords: ["ean", "sort", "sorter", "barcode", "folder", "status"] },
-  { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images by EAN", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name"] },
+  { to: "/ean-sorter", title: "EAN Sorter", desc: "3-tier smart matching and auto-sort into EAN folders", keywords: ["ean", "sort", "sorter", "barcode", "folder", "status", "match", "master", "tier"] },
+  { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images with master data matching", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name", "bulk", "master", "match"] },
   { to: "/guide", title: "Guide", desc: "When to use each tab and how to handle common cases", keywords: ["guide", "help", "how", "workflow", "tab", "case", "huong dan"] },
   { to: "/credits", title: "Credits", desc: "MDX team credits", keywords: ["credits", "team", "about"] },
 ];
@@ -685,7 +686,7 @@ const FEATURES = [
   {
     to: "/ean-sorter",
     title: "EAN Sorter",
-    desc: "Scan folders for EAN barcodes, sort files into organized structure",
+    desc: "3-tier smart matching (EAN, article code, product name) with deep scan and auto-sort",
     icon: IconEANSorter,
     img: "/icons/ean-sorter.png",
     mono: true,
@@ -694,7 +695,7 @@ const FEATURES = [
   {
     to: "/ean-renamer",
     title: "EAN Renamer",
-    desc: "Batch rename product images by EAN with drag-and-drop",
+    desc: "Drag-and-drop image renaming with master data matching and bulk folder mode",
     icon: IconEANRenamer,
     img: "/icons/ean-renamer.png",
     mono: false,
@@ -728,36 +729,69 @@ const QUICK_ACTIONS = [
 
 const BANNERS = [
   {
-    img: "/icons/banner-data-qc.jpg",
+    gradient: "linear-gradient(135deg, #1e1b4b 0%, #312e81 35%, #4338ca 100%)",
+    accentColor: "#818cf8",
+    svgPattern: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs><pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="rgba(129,140,248,0.15)"/></pattern><pattern id="grid" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M60 0V60H0" fill="none" stroke="rgba(129,140,248,0.06)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#dots)"/><rect width="100%" height="100%" fill="url(#grid)"/><circle cx="85%" cy="25%" r="120" fill="rgba(99,102,241,0.08)"/><circle cx="70%" cy="70%" r="80" fill="rgba(129,140,248,0.06)"/></svg>`,
     to: "/data-qc",
     title: "Data Quality Control",
     desc: "Audit master data, validate fields, generate missing data reports and quality checks across brands.",
     btn: "Open Data QC",
   },
   {
-    img: "/icons/banner-image-edit.jpg",
+    gradient: "linear-gradient(135deg, #0c4a6e 0%, #0369a1 35%, #0ea5e9 100%)",
+    accentColor: "#7dd3fc",
+    svgPattern: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs><pattern id="circuit" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M0 20h15l5-5 5 5h15" fill="none" stroke="rgba(125,211,252,0.1)" stroke-width="1"/><path d="M20 0v15l5 5-5 5v15" fill="none" stroke="rgba(125,211,252,0.1)" stroke-width="1"/><circle cx="20" cy="20" r="2" fill="rgba(125,211,252,0.12)"/></pattern></defs><rect width="100%" height="100%" fill="url(#circuit)"/><circle cx="80%" cy="30%" r="100" fill="rgba(14,165,233,0.1)"/><circle cx="25%" cy="75%" r="70" fill="rgba(56,189,248,0.06)"/></svg>`,
     to: "/image-edit",
     title: "Image Edit",
     desc: "AI-powered background removal, smart upscaling, batch canvas editing for product images.",
     btn: "Open Image Edit",
   },
   {
-    img: "/icons/banner-ean-sorter.jpg",
+    gradient: "linear-gradient(135deg, #052e16 0%, #065f46 35%, #059669 100%)",
+    accentColor: "#6ee7b7",
+    svgPattern: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs><pattern id="hex" x="0" y="0" width="56" height="48" patternUnits="userSpaceOnUse"><path d="M28 0l28 16v32l-28 16L0 48V16z" fill="none" stroke="rgba(110,231,183,0.08)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hex)"/><circle cx="75%" cy="35%" r="110" fill="rgba(5,150,105,0.1)"/><circle cx="30%" cy="80%" r="60" fill="rgba(52,211,153,0.06)"/></svg>`,
     to: "/ean-sorter",
     title: "EAN Sorter",
-    desc: "Scan folders for EAN barcodes, sort files into organized structure, and categorize by product status.",
+    desc: "3-tier smart matching with deep scan, auto-sort by EAN, article code, or product name.",
     btn: "Open EAN Sorter",
   },
   {
-    img: "/icons/banner-ean-renamer.jpg",
+    gradient: "linear-gradient(135deg, #451a03 0%, #92400e 35%, #d97706 100%)",
+    accentColor: "#fcd34d",
+    svgPattern: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs><pattern id="diag" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M0 20L20 0" fill="none" stroke="rgba(252,211,77,0.07)" stroke-width="1"/></pattern><pattern id="dots2" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse"><circle cx="16" cy="16" r="1.5" fill="rgba(252,211,77,0.1)"/></pattern></defs><rect width="100%" height="100%" fill="url(#diag)"/><rect width="100%" height="100%" fill="url(#dots2)"/><circle cx="82%" cy="28%" r="90" fill="rgba(217,119,6,0.1)"/><circle cx="20%" cy="70%" r="65" fill="rgba(251,191,36,0.06)"/></svg>`,
     to: "/ean-renamer",
     title: "EAN Renamer",
-    desc: "Batch rename product images by EAN with drag-and-drop, multiple naming modes and category support.",
+    desc: "Drag-and-drop image renaming with master data matching and bulk folder processing mode.",
     btn: "Open EAN Renamer",
   },
 ];
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: "2026.06.24.2",
+    date: "2026-06-24",
+    title: "Smart image matching and auto-sort",
+    type: "EAN Renamer",
+    changes: [
+      "Per-image matching: file names are matched against master data (EAN, article code, product name) with tier badges and confidence on each card.",
+      "Auto-Sort: one click sorts matched images into product-based columns automatically, unmatched stay in Unsorted.",
+      "Bulk mode now sends all image names (not just samples) for deeper matching accuracy.",
+      "Click-to-select + Shift-range + drag: redesigned drag and drop with explicit multi-select.",
+      "Dashboard banners redesigned with SVG patterns and glassmorphism cards.",
+    ],
+  },
+  {
+    version: "2026.06.24.0",
+    date: "2026-06-24",
+    title: "EAN Sorter v2 and Bulk master data matching",
+    type: "EAN Sorter + EAN Renamer",
+    changes: [
+      "EAN Sorter rebuilt with 3-tier matching: EAN checksum, article code tokens, and product name fuzzy matching against uploaded master data.",
+      "Deep scan finds all images recursively with loose image collection, ambiguous match resolution, and confidence-scored results.",
+      "Frontend split from monolithic 2400-line component into modular Scanner, Review, and Categorize views.",
+      "EAN Renamer bulk mode now supports master data upload and 3-tier matching with tier badges, confidence display, and match review modal.",
+    ],
+  },
   {
     version: "2026.06.23.3",
     date: "2026-06-23",
@@ -1045,58 +1079,58 @@ function Dashboard() {
               style={{
                 position: "absolute",
                 inset: 0,
-                backgroundImage: `url(${b.img})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+                background: b.gradient,
                 opacity: i === bannerIdx ? 1 : 0,
                 transition: "opacity 0.8s ease",
               }}
-            />
-          ))}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(135deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.3) 100%)",
-          }} />
-          <div className="hero-content dashboard-banner-copy" style={{ position: "relative", zIndex: 2 }}>
-            <h1>{banner.title}</h1>
-            <p>{banner.desc}</p>
-            <button
-              className="hero-btn"
-              style={{ marginTop: 14 }}
-              onClick={() => navigate(banner.to)}
             >
-              {banner.btn} <IconArrowRight />
-            </button>
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-              {BANNERS.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => goToBanner(i)}
-                  style={{
-                    width: i === bannerIdx ? 28 : 10,
-                    height: 10,
-                    borderRadius: 5,
-                    border: "none",
-                    background: i === bannerIdx ? "#fff" : "rgba(255,255,255,0.4)",
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    padding: 0,
-                  }}
-                />
-              ))}
+              <div
+                style={{ position: "absolute", inset: 0 }}
+                dangerouslySetInnerHTML={{ __html: b.svgPattern }}
+              />
+            </div>
+          ))}
+          <div className="dashboard-glass-card" style={{ position: "relative", zIndex: 2 }}>
+            <h1 style={{ color: banner.accentColor }}>{banner.title}</h1>
+            <p>{banner.desc}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 18 }}>
+              <button
+                className="hero-btn"
+                onClick={() => navigate(banner.to)}
+              >
+                {banner.btn} <IconArrowRight />
+              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                {BANNERS.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => goToBanner(i)}
+                    style={{
+                      width: i === bannerIdx ? 24 : 8,
+                      height: 8,
+                      borderRadius: 4,
+                      border: "none",
+                      background: i === bannerIdx ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      padding: 0,
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
         <div className="hero-info changelog-summary">
           <h3>Latest Update</h3>
-          <span className="changelog-type" style={{ marginBottom: 6, display: "inline-block" }}>{latest.type}</span>
-          <h4 style={{ margin: "4px 0 8px", fontSize: "1rem" }}>{latest.title}</h4>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.85rem", opacity: 0.85, lineHeight: 1.6 }}>
-            {latest.changes.map((c) => (
-              <li key={c}>{c}</li>
+          <span className="changelog-type" style={{ marginBottom: 8, display: "inline-block" }}>{latest.type}</span>
+          <h4 style={{ margin: "4px 0 10px", fontSize: "1.05rem", fontWeight: 600, lineHeight: 1.3 }}>{latest.title}</h4>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.65, listStyleType: "'\\2022  '" }}>
+            {latest.changes.slice(0, 3).map((c) => (
+              <li key={c} style={{ marginBottom: 4 }}>{c}</li>
             ))}
           </ul>
-          <div style={{ fontSize: "0.78rem", opacity: 0.5, marginTop: 10 }}>
+          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 12 }}>
             v{latest.version} &middot; {latest.date}
           </div>
         </div>
@@ -1184,8 +1218,8 @@ const GUIDE_OVERVIEW = [
   ["Image Edit", "Batch process product images: resize, canvas, background cleanup, upscale, naming, and export."],
   ["Images Check", "Review image folders visually, mark bad images, and delete only after confirmation."],
   ["Packshot Browser", "Search synced packshot folders by EAN, filename, folder, or keyword, then copy selected files."],
-  ["EAN Sorter", "Scan images for barcodes or EANs and sort files into EAN/status folders."],
-  ["EAN Renamer", "Copy or rename product images by EAN, category, product name, duplicate groups, and naming mode."],
+  ["EAN Sorter", "Deep scan images, match against master data using 3-tier matching (EAN, article code, product name), and sort into EAN folders."],
+  ["EAN Renamer", "Copy or rename product images by EAN with master data matching, drag-and-drop categories, bulk folder mode, and naming rules."],
 ];
 
 const GUIDE_TABS = [
@@ -1317,29 +1351,36 @@ const GUIDE_TABS = [
   },
   {
     title: "EAN Sorter",
-    purpose: "Use EAN Sorter when files need to be grouped by detected barcode or EAN.",
+    purpose: "Use EAN Sorter when images need to be matched against product master data and sorted into EAN folders.",
     features: [
-      "Scan image folders for barcode or EAN information.",
-      "Preview detected results before applying sort actions.",
-      "Group files by detected EAN or status.",
-      "Create reports that help review successful, missing, or uncertain detections.",
-      "Use the built-in Guide button in the tab for sorter-specific details.",
+      "Deep scan recursively finds all images across subfolders with stats and loose image detection.",
+      "Upload master data (Excel with EAN, article code, or product name columns) for 3-tier matching.",
+      "Tier 1: EAN checksum detection from filenames (confidence 1.0).",
+      "Tier 2: Article code token matching against master data (confidence 0.8).",
+      "Tier 3: Product name fuzzy matching using sequence similarity (threshold 0.6, confidence up to 0.7).",
+      "Resolve ambiguous matches via dropdown before sorting.",
+      "Auto-sort creates EAN folders and moves matched images with a detailed Excel report.",
+      "Categorize view creates product folders organized by status with EAN subfolders.",
     ],
     steps: [
       "Open EAN Sorter.",
       "Choose the source folder.",
-      "Run the scan.",
-      "Review detected EANs, missing values, and uncertain items.",
-      "Apply the sort/copy workflow only after reviewing the preview.",
-      "Open the generated report if the team needs verification evidence.",
+      "Upload master data (Excel with EAN / article code / product name columns).",
+      "Click Deep Scan to find all images recursively.",
+      "Collect loose images if any are found outside subfolders.",
+      "Click Match to run 3-tier matching against master data.",
+      "Resolve any ambiguous matches by selecting the correct EAN from dropdowns.",
+      "Click Sort to create EAN folders and move images.",
+      "Open Review to see the report, export to Excel, or reveal in Explorer.",
     ],
     cases: [
       "Use it when images arrive unsorted and folder names must be based on EAN.",
-      "Use it when barcode visibility is good enough for detection.",
-      "Use it to separate detected and undetected files for manual follow-up.",
+      "Use it when filenames contain article codes or product names instead of barcodes.",
+      "Use it to separate matched and unmatched files for manual follow-up.",
     ],
     notes: [
-      "Blurry, cropped, tiny, rotated, or partially hidden barcodes can reduce detection accuracy.",
+      "Master data quality directly affects matching accuracy — ensure EAN and article code columns are clean.",
+      "Tier 3 fuzzy matching may produce false positives — always review ambiguous results before sorting.",
       "Review results before applying folder changes.",
     ],
   },
@@ -1603,13 +1644,17 @@ function AppShell() {
           <Route
             path="/ean-sorter"
             element={
-              <RealEanSorterView />
+              <ErrorBoundary fallbackLabel="EAN Sorter encountered an error">
+                <RealEanSorterView />
+              </ErrorBoundary>
             }
           />
           <Route
             path="/ean-renamer"
             element={
-              <RealEanRenamerView />
+              <ErrorBoundary fallbackLabel="EAN Renamer encountered an error">
+                <RealEanRenamerView />
+              </ErrorBoundary>
             }
           />
           <Route path="/guide" element={<GuideView />} />

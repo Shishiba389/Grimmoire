@@ -4,16 +4,22 @@ Ported from NAMING_SAMPLE/backend/app/main.py.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 import tempfile
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pathlib import Path
 
 from services.ean_renamer.models import (
     ApplyRenameResponse,
+    BulkFolderMatchItem,
+    BulkMatchCandidate,
+    BulkMatchRequest,
+    BulkMatchResponse,
+    BulkMatchResult,
     BulkMappingEntry,
     BulkMappingResponse,
     BulkScanResponse,
@@ -21,6 +27,10 @@ from services.ean_renamer.models import (
     BatchRenamePlanResponse,
     BatchRenameRequest,
     FolderResponse,
+    ImageMatchCandidate,
+    ImageMatchItem,
+    ImageMatchRequest,
+    ImageMatchResponse,
     OpenFolderRequest,
     PickOutputFolderRequest,
     PickFolderResponse,
@@ -220,3 +230,147 @@ def apply_batch_rename(request: BatchRenameRequest) -> BatchApplyRenameResponse:
 @router.post("/rename/undo", response_model=UndoResponse)
 def undo_last_rename(request: UndoRequest) -> UndoResponse:
     return undo_rename(request)
+
+
+# ---------------------------------------------------------------------------
+# Master data matching for Bulk mode (reuses ean_sorter's 3-tier matcher)
+# ---------------------------------------------------------------------------
+
+from services.ean_sorter.matcher import MasterDataMatcher
+from services.ean_sorter.models import ImageRecord, MasterDataRow, MasterDataUploadResponse
+
+_master_sessions: dict[str, tuple[MasterDataMatcher, list[MasterDataRow], float]] = {}
+_MASTER_TTL = 7200
+_MASTER_MAX_SESSIONS = 10
+
+
+def _cleanup_master_sessions() -> None:
+    now = time.time()
+    expired = [k for k, (_, _, ts) in _master_sessions.items() if now - ts > _MASTER_TTL]
+    for k in expired:
+        _master_sessions.pop(k, None)
+    if len(_master_sessions) > _MASTER_MAX_SESSIONS:
+        by_age = sorted(_master_sessions.items(), key=lambda x: x[1][2])
+        for k, _ in by_age[:len(_master_sessions) - _MASTER_MAX_SESSIONS]:
+            _master_sessions.pop(k, None)
+
+
+def _get_master_matcher(session_id: str) -> MasterDataMatcher:
+    _cleanup_master_sessions()
+    entry = _master_sessions.get(session_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Master data session not found or expired. Please re-upload.")
+    return entry[0]
+
+
+@router.post("/master-data/upload")
+async def upload_master_data(file: UploadFile = File(...)) -> dict:
+    from services.shared.excel_parser import handle_upload
+    return await handle_upload(file, _master_sessions, _cleanup_master_sessions)
+
+
+@router.post("/master-data/upload-path")
+def upload_master_data_path(payload: dict) -> dict:
+    from services.shared.excel_parser import handle_upload_path
+    return handle_upload_path(payload, _master_sessions, _cleanup_master_sessions)
+
+
+@router.post("/bulk/match-master")
+def bulk_match_master(request: BulkMatchRequest) -> BulkMatchResponse:
+    matcher = _get_master_matcher(request.session_id)
+
+    results: list[BulkMatchResult] = []
+    for folder in request.folders:
+        all_candidates: list[BulkMatchCandidate] = []
+        seen_eans: set[str] = set()
+
+        names_to_match = [folder.name]
+        if folder.relativePath and folder.relativePath != ".":
+            names_to_match.append(folder.relativePath)
+        names_to_match.extend(folder.sampleImageNames)
+
+        for name in names_to_match:
+            fake_image = ImageRecord(
+                path=name,
+                name=name,
+                source_folder=folder.name,
+                relative_path=folder.relativePath,
+                size_bytes=0,
+            )
+            match_result = matcher.match(fake_image)
+            for c in match_result.candidates:
+                if c.ean not in seen_eans:
+                    seen_eans.add(c.ean)
+                    all_candidates.append(BulkMatchCandidate(
+                        ean=c.ean,
+                        product_name=c.product_name,
+                        confidence=c.confidence,
+                        tier=c.tier,
+                        match_source=c.match_source,
+                    ))
+
+        if len(all_candidates) == 0:
+            status = "unmatched"
+        elif len(all_candidates) == 1:
+            status = "matched"
+        else:
+            status = "ambiguous"
+
+        results.append(BulkMatchResult(
+            key=folder.key,
+            name=folder.name,
+            candidates=all_candidates,
+            selected_index=0 if len(all_candidates) == 1 else None,
+            status=status,
+        ))
+
+    matched = sum(1 for r in results if r.status == "matched")
+    ambiguous = sum(1 for r in results if r.status == "ambiguous")
+    unmatched = sum(1 for r in results if r.status == "unmatched")
+
+    return BulkMatchResponse(
+        results=results,
+        summary={"total": len(results), "matched": matched, "ambiguous": ambiguous, "unmatched": unmatched},
+    )
+
+
+@router.post("/match-images", response_model=ImageMatchResponse)
+def match_images(request: ImageMatchRequest) -> ImageMatchResponse:
+    matcher = _get_master_matcher(request.session_id)
+
+    matches: list[ImageMatchItem] = []
+    for name in request.image_names:
+        fake_image = ImageRecord(
+            path=name,
+            name=name,
+            source_folder="",
+            relative_path="",
+            size_bytes=0,
+        )
+        result = matcher.match(fake_image)
+        best = result.candidates[0] if result.candidates else None
+        matches.append(ImageMatchItem(
+            image_name=name,
+            candidates=[
+                ImageMatchCandidate(
+                    ean=c.ean,
+                    product_name=c.product_name,
+                    confidence=c.confidence,
+                    tier=c.tier,
+                    match_source=c.match_source,
+                )
+                for c in result.candidates
+            ],
+            best_ean=best.ean if best else None,
+            best_product=best.product_name if best else None,
+            best_confidence=best.confidence if best else 0.0,
+            best_tier=best.tier if best else None,
+            status=result.status,
+        ))
+
+    matched_count = sum(1 for m in matches if m.status != "unmatched")
+    return ImageMatchResponse(
+        matches=matches,
+        matched_count=matched_count,
+        total_count=len(matches),
+    )

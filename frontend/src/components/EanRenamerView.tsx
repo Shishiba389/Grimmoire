@@ -1,171 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiJson, apiUrl } from "./ToolShared";
+import { apiJson } from "./ToolShared";
 import { useNotifications } from "../contexts/NotificationContext";
-
-/* ── Types ── */
-
-type RenImage = {
-  id: string;
-  name: string;
-  extension: string;
-  width: number;
-  height: number;
-  sizeBytes: number;
-  ean: string;
-  relativePath: string;
-};
-
-type FolderResult = {
-  folderPath: string;
-  ean: string;
-  images: RenImage[];
-};
-
-type BulkFolderItem = {
-  key: string;
-  folderPath: string;
-  relativePath: string;
-  name: string;
-  imageCount: number;
-  imageIds: string[];
-  images: RenImage[];
-  sampleImages: RenImage[];
-};
-
-type BulkScanResult = {
-  folderPath: string;
-  totalFolders: number;
-  totalImages: number;
-  folders: BulkFolderItem[];
-};
-
-type BulkMappingEntry = {
-  ean?: string | null;
-  productName?: string | null;
-  source?: string | null;
-};
-
-type BulkWorkItem = BulkFolderItem & {
-  ean: string;
-  productName: string;
-  matchSource: "manual" | "folder" | "file" | "master" | "missing";
-  status: "pending" | "active" | "done" | "skipped";
-};
-
-type KanbanColumn = {
-  key: string;
-  title: string;
-  fixed?: boolean;
-  imageIds: string[];
-};
-
-type DuplicateGroup = {
-  id: string;
-  imageIds: string[];
-  first: boolean;
-};
-type DuplicateBuckets = Record<string, DuplicateGroup[]>;
-type DuplicateLabels = Record<string, string>;
-type NamingMode = "per-category" | "continuous" | "prefixed";
-type OutputMode = "copy" | "in-folder";
-
-type RenamePlanItem = {
-  id: string;
-  category: string;
-  oldName: string;
-  newName?: string;
-  outputPath?: string;
-  outputRelativePath?: string;
-  status?: "rename" | "conflict" | "skip";
-};
-
-type RenameResult = {
-  items: RenamePlanItem[];
-  renamed?: number;
-  skipped?: number;
-  skippedCount?: number;
-  conflicts?: number | string[];
-  logPath?: string;
-};
-
-type SettingsState = {
-  outputMode: OutputMode;
-  namingMode: NamingMode;
-};
-
-type ViewMode = "single" | "bulk";
-
-type HoverPreviewState = {
-  image: RenImage;
-  x: number;
-  y: number;
-} | null;
-
-type DragPoint = {
-  x: number;
-  y: number;
-} | null;
-
-type PriorityFirstMap = Record<string, Set<string>>;
-
-/* ── Constants ── */
-
-const DEFAULT_COLUMNS: KanbanColumn[] = [
-  { key: "unsorted", title: "Unsorted", fixed: true, imageIds: [] },
-  { key: "packshot", title: "Packshot", imageIds: [] },
-  { key: "lifestyle-human", title: "Lifestyle/Human", imageIds: [] },
-  { key: "lifestyle-normal", title: "Lifestyle/Normal", imageIds: [] },
-  { key: "artwork", title: "Artwork", imageIds: [] },
-  { key: "duplicate", title: "Duplicate", fixed: true, imageIds: [] },
-];
-
-const EMPTY_DUPLICATE_BUCKETS: DuplicateBuckets = {
-  packshot: [],
-  "lifestyle-human": [],
-  "lifestyle-normal": [],
-  artwork: [],
-};
-const DEFAULT_DUPLICATE_LABELS: DuplicateLabels = {
-  packshot: "PACK SHOT",
-  "lifestyle-human": "HUMAN",
-  "lifestyle-normal": "NORMAL LIFESTYLE",
-  artwork: "ARTWORK",
-};
-
-/* ── Helpers ── */
-
-function validateEan13(code: string): boolean {
-  if (!/^\d{13}$/.test(code)) return false;
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    sum += Number(code[i]) * (i % 2 === 0 ? 1 : 3);
-  }
-  const check = (10 - (sum % 10)) % 10;
-  return check === Number(code[12]);
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(2)} MB`;
-}
-
-function thumbnailUrl(id: string, folderPath: string): string {
-  return apiUrl(`/api/ean-renamer/images/${encodeURIComponent(id)}/thumbnail?folderPath=${encodeURIComponent(folderPath)}`);
-}
-
-function columnCategoryKey(key: string): string {
-  if (key === "lifestyle-human") return "lifestyle_human";
-  if (key === "lifestyle-normal") return "lifestyle_normal";
-  return key;
-}
-
-function outputLabelForColumn(col: KanbanColumn): string {
-  if (col.key === "packshot") return "PACKSHOT";
-  if (col.key === "lifestyle-human") return "HUMAN";
-  if (col.key === "lifestyle-normal") return "NORMAL LIFESTYLE";
-  return col.title;
-}
+import {
+  HoverPreview, ClipOverlay, MasterDataMatchModal, OutputBar,
+  BulkActiveIndicator, PreviewPanel, TopBar, Footer, PreviewModal,
+  BulkWorkingView, ImageCard,
+} from "./ean-renamer";
+import type {
+  RenImage, FolderResult, BulkFolderItem, BulkScanResult,
+  BulkMappingEntry, BulkMatchResult, BulkMatchResponse,
+  MasterDataUploadResponse, ImageMatchItem, ImageMatchResponse,
+  BulkWorkItem, KanbanColumn, DuplicateGroup, DuplicateBuckets, DuplicateLabels,
+  NamingMode, OutputMode, RenamePlanItem, RenameResult, SettingsState,
+  ViewMode, HoverPreviewState, PriorityFirstMap,
+  ClipProgress, ClipImageClassification, ClipResult,
+} from "./ean-renamer/types";
+import {
+  CLIP_CATEGORY_TO_COLUMN, COLUMN_TO_CLIP_CATEGORY,
+  DEFAULT_COLUMNS, EMPTY_DUPLICATE_BUCKETS,
+  DEFAULT_DUPLICATE_LABELS, validateEan13,
+  columnCategoryKey, outputLabelForColumn,
+} from "./ean-renamer/types";
 
 function duplicateLabelForColumn(col: KanbanColumn, labels: DuplicateLabels): string {
   return labels[col.key] || outputLabelForColumn(col).toUpperCase();
@@ -185,10 +40,6 @@ function normalizeNamingMode(mode: NamingMode): string {
 
 function normalizeOutputMode(mode: OutputMode): string {
   return mode === "in-folder" ? "rename" : "copy";
-}
-
-function planOutput(item: RenamePlanItem): string {
-  return item.outputPath || item.outputRelativePath || item.newName || "";
 }
 
 function extractEanCandidate(value: string): string {
@@ -257,6 +108,24 @@ export function EanRenamerView() {
   const [bulkItems, setBulkItems] = useState<BulkWorkItem[]>([]);
   const [bulkWarnings, setBulkWarnings] = useState<string[]>([]);
   const [activeBulkKey, setActiveBulkKey] = useState<string | null>(null);
+  const [masterSessionId, setMasterSessionId] = useState("");
+  const [masterRowCount, setMasterRowCount] = useState(0);
+  const [masterColumns, setMasterColumns] = useState<string[]>([]);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [bulkMatchResults, setBulkMatchResults] = useState<BulkMatchResult[]>([]);
+  const [bulkMatchSummary, setBulkMatchSummary] = useState<BulkMatchResponse["summary"] | null>(null);
+
+  /* state: per-image matching */
+  const [imageMatches, setImageMatches] = useState<Map<string, ImageMatchItem>>(new Map());
+  const [imageMatchSummary, setImageMatchSummary] = useState<{ matched: number; total: number } | null>(null);
+
+  /* state: CLIP classification */
+  const [clipJobId, setClipJobId] = useState<string | null>(null);
+  const [clipProgress, setClipProgress] = useState<ClipProgress | null>(null);
+  const [clipClassifications, setClipClassifications] = useState<Map<string, ClipImageClassification>>(new Map());
+  const [clipBusy, setClipBusy] = useState(false);
+  const clipPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const folderAbortRef = useRef<AbortController | null>(null);
 
   /* state: UI */
   const [showSettings, setShowSettings] = useState(false);
@@ -272,7 +141,6 @@ export function EanRenamerView() {
   /* drag state */
   const [dragIds, setDragIds] = useState<string[]>([]);
   const [dragSourceKey, setDragSourceKey] = useState<string | null>(null);
-  const [dragPoint, setDragPoint] = useState<DragPoint>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [duplicateDropTarget, setDuplicateDropTarget] = useState<string | null>(null);
   const [duplicateGroupDropTarget, setDuplicateGroupDropTarget] = useState<string | null>(null);
@@ -320,12 +188,198 @@ export function EanRenamerView() {
     }
   }
 
-  async function loadFolder(path: string) {
+  async function matchImagesWithMaster(imgs: RenImage[], sessionId: string) {
+    try {
+      const res = await apiJson<ImageMatchResponse>("/api/ean-renamer/match-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, image_names: imgs.map((i) => i.name) }),
+      });
+      const map = new Map<string, ImageMatchItem>();
+      for (let i = 0; i < imgs.length; i++) {
+        const match = res.matches[i];
+        if (match && match.status !== "unmatched") map.set(imgs[i].id, match);
+      }
+      setImageMatches(map);
+      setImageMatchSummary({ matched: res.matched_count, total: res.total_count });
+      if (res.matched_count > 0) {
+        notify("Image matching", { type: "info", message: `${res.matched_count}/${res.total_count} images matched with master data` });
+      }
+    } catch {
+      setImageMatches(new Map());
+      setImageMatchSummary(null);
+    }
+  }
+
+  /* ── CLIP classification ── */
+
+  function stopClipPolling() {
+    if (clipPollRef.current) {
+      clearInterval(clipPollRef.current);
+      clipPollRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    apiJson("/api/ean-renamer/clip/warm-up", { method: "POST" }).catch(() => {});
+    return () => stopClipPolling();
+  }, []);
+
+  async function startClipClassification(targetFolderPath: string, targetImages: RenImage[]) {
+    if (!targetFolderPath || targetImages.length === 0 || clipBusy) return;
+    setClipBusy(true);
+    setClipProgress(null);
+    setClipClassifications(new Map());
+    try {
+      const res = await apiJson<{ job_id: string }>("/api/ean-renamer/clip/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folder_path: targetFolderPath,
+        }),
+      });
+      setClipJobId(res.job_id);
+      notify("CLIP Classification", { type: "info", message: "Classification started..." });
+
+      let lastPhase = "";
+      let lastProcessed = -1;
+      clipPollRef.current = setInterval(async () => {
+        try {
+          const prog = await apiJson<ClipProgress>(`/api/ean-renamer/clip/classify/${res.job_id}/progress`);
+
+          if (prog.phase !== lastPhase || prog.processed !== lastProcessed) {
+            lastPhase = prog.phase;
+            lastProcessed = prog.processed;
+            setClipProgress(prog);
+          }
+
+          if (prog.phase === "done" || prog.phase === "error" || prog.phase === "cancelled") {
+            stopClipPolling();
+            if (prog.phase === "done") {
+              const resultRes = await apiJson<{ status: string; result: ClipResult | null }>(
+                `/api/ean-renamer/clip/classify/${res.job_id}/result`
+              );
+              if (resultRes.result) {
+                applyClipResults(resultRes.result, targetImages);
+                notify("CLIP Classification", {
+                  type: "success",
+                  message: `${resultRes.result.total_images} images classified`,
+                });
+              }
+            } else if (prog.phase === "error") {
+              notify("CLIP Classification", { type: "error", message: prog.error || "Classification failed" });
+            } else {
+              notify("CLIP Classification", { type: "info", message: "Classification cancelled" });
+            }
+            setClipBusy(false);
+          }
+        } catch {
+          stopClipPolling();
+          setClipBusy(false);
+        }
+      }, 2000);
+    } catch (e) {
+      notify("CLIP Classification", { type: "error", message: e instanceof Error ? e.message : String(e) });
+      setClipBusy(false);
+    }
+  }
+
+  async function handleAutoClassify() {
+    await startClipClassification(folderPath, images);
+  }
+
+  async function handleCancelClassify() {
+    if (!clipJobId) return;
+    stopClipPolling();
+    setClipBusy(false);
+    setClipProgress(null);
+    try {
+      await apiJson(`/api/ean-renamer/clip/classify/${clipJobId}/cancel`, { method: "POST" });
+    } catch { /* ignore */ }
+  }
+
+  function applyClipResults(result: ClipResult, targetImages: RenImage[]) {
+    const classMap = new Map<string, ClipImageClassification>();
+    const columnAssignments = new Map<string, string>();
+    const targetImageIds = new Set(targetImages.map((img) => img.id));
+
+    for (const c of result.classifications) {
+      if (!targetImageIds.has(c.image_id)) continue;
+      classMap.set(c.image_id, c);
+      const colKey = CLIP_CATEGORY_TO_COLUMN[c.main_category] || "unsorted";
+      columnAssignments.set(c.image_id, colKey);
+    }
+
+    setClipClassifications(classMap);
+
+    setColumns((prev) => {
+      const newColumns = prev.map((col) => ({ ...col, imageIds: [] as string[] }));
+      const colMap = new Map(newColumns.map((c) => [c.key, c]));
+
+      for (const img of targetImages) {
+        const assignedCol = columnAssignments.get(img.id);
+        const target = assignedCol && colMap.has(assignedCol) ? assignedCol : "unsorted";
+        colMap.get(target)!.imageIds.push(img.id);
+      }
+
+      return newColumns;
+    });
+  }
+
+  async function commitCorrections() {
+    if (clipClassifications.size === 0) return;
+    const corrections: Array<Record<string, unknown>> = [];
+
+    for (const col of columns) {
+      if (col.key === "unsorted" || col.key === "duplicate") continue;
+      for (const imgId of col.imageIds) {
+        const clip = clipClassifications.get(imgId);
+        if (!clip) continue;
+        const predictedCol = CLIP_CATEGORY_TO_COLUMN[clip.main_category] || "unsorted";
+        if (predictedCol !== col.key) {
+          const correctedCategory = COLUMN_TO_CLIP_CATEGORY[col.key];
+          if (!correctedCategory) continue;
+          corrections.push({
+            image_hash: imgId,
+            relative_path: clip.relative_path,
+            source_batch: folderPath,
+            predicted_category: clip.main_category,
+            predicted_subcategory: clip.subcategory,
+            corrected_category: correctedCategory,
+            corrected_subcategory: "",
+            top1_score: clip.calibrated_score,
+            top2_score: clip.top_categories.length > 1 ? clip.top_categories[1].score : 0,
+            score_gap: clip.score_gap,
+            clip_model_version: "",
+            taxonomy_version: "",
+            embedding_cache_key: imgId,
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    if (corrections.length > 0) {
+      try {
+        await apiJson("/api/ean-renamer/clip/corrections/commit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folder_path: folderPath, corrections }),
+        });
+      } catch { /* silent */ }
+    }
+  }
+
+  async function loadFolder(path: string): Promise<FolderResult | null> {
+    folderAbortRef.current?.abort();
+    const controller = new AbortController();
+    folderAbortRef.current = controller;
     try {
       const result = await apiJson<FolderResult>("/api/ean-renamer/folder/open", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ folderPath: path }),
+        signal: controller.signal,
       });
       setFolderPath(result.folderPath);
       setDetectedEan(result.ean || "");
@@ -336,6 +390,11 @@ export function EanRenamerView() {
       setDuplicateBuckets({ ...EMPTY_DUPLICATE_BUCKETS });
       setPriorityFirst({});
       setPriorityEnabled({});
+      setImageMatches(new Map());
+      setImageMatchSummary(null);
+      setClipClassifications(new Map());
+      setClipJobId(null);
+      setClipProgress(null);
       /* Put all images in Unsorted */
       setColumns((prev) =>
         prev.map((col) =>
@@ -343,8 +402,14 @@ export function EanRenamerView() {
         )
       );
       notify("Folder loaded", { type: "success", message: `${result.images.length} images found` });
+      if (masterSessionId && result.images.length > 0) {
+        void matchImagesWithMaster(result.images, masterSessionId);
+      }
+      return result;
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return null;
       notify("Failed to load folder", { type: "error", message: e instanceof Error ? e.message : String(e) });
+      return null;
     }
   }
 
@@ -372,18 +437,22 @@ export function EanRenamerView() {
       setRenamePlan([]);
       setBulkWarnings([]);
       setActiveBulkKey(null);
-      setBulkItems(
-        result.folders.map((item) => {
-          const ean = extractEanCandidate(`${item.name} ${item.relativePath}`);
-          return {
-            ...item,
-            ean,
-            productName: "",
-            matchSource: ean ? "folder" : "missing",
-            status: "pending",
-          };
-        })
-      );
+      const newItems = result.folders.map((item) => {
+        const ean = extractEanCandidate(`${item.name} ${item.relativePath}`);
+        return {
+          ...item,
+          ean,
+          productName: "",
+          matchSource: (ean ? "folder" : "missing") as BulkWorkItem["matchSource"],
+          matchTier: null as BulkWorkItem["matchTier"],
+          matchConfidence: null as BulkWorkItem["matchConfidence"],
+          status: "pending" as const,
+        };
+      });
+      setBulkItems(newItems);
+      if (masterSessionId) {
+        void rematchBulkItems(newItems, masterSessionId);
+      }
       notify("Bulk scan complete", { type: "success", message: `${result.totalFolders} folders, ${result.totalImages} images` });
     } catch (e) {
       notify("Bulk scan failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
@@ -392,15 +461,21 @@ export function EanRenamerView() {
 
   function updateBulkItem(key: string, patch: Partial<Pick<BulkWorkItem, "ean" | "productName" | "matchSource" | "status">>) {
     setBulkItems((prev) =>
-      prev.map((item) =>
-        item.key === key
-          ? { ...item, ...patch, matchSource: patch.matchSource || (patch.ean || patch.productName ? "manual" : item.matchSource) }
-          : item
-      )
+      prev.map((item) => {
+        if (item.key !== key) return item;
+        const isManual = patch.matchSource === "manual" || (!patch.matchSource && (patch.ean || patch.productName));
+        return {
+          ...item,
+          ...patch,
+          matchSource: patch.matchSource || (isManual ? "manual" : item.matchSource),
+          matchTier: isManual ? null : item.matchTier,
+          matchConfidence: isManual ? null : item.matchConfidence,
+        };
+      })
     );
   }
 
-  async function handleBulkImport(file: File | undefined, source: "file" | "master") {
+  async function handleBulkImportLegacy(file: File | undefined, source: "file" | "master") {
     if (!file) return;
     const form = new FormData();
     form.append("file", file);
@@ -420,6 +495,151 @@ export function EanRenamerView() {
     }
   }
 
+  async function handleMasterUpload(file: File | undefined) {
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await apiJson<MasterDataUploadResponse>("/api/ean-renamer/master-data/upload", {
+        method: "POST",
+        body: form,
+      });
+      setMasterSessionId(res.session_id);
+      setMasterRowCount(res.row_count);
+      setMasterColumns(res.columns_detected);
+      if (res.warnings.length > 0) {
+        setBulkWarnings(res.warnings);
+      }
+      notify(`Master data loaded: ${res.row_count} rows`, { type: "success", message: res.columns_detected.join(" · ") });
+      if (bulkItems.length > 0) {
+        await rematchBulkItems(bulkItems, res.session_id);
+      }
+    } catch (e) {
+      notify("Master data upload failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function handleMasterPick() {
+    if (!window.__grimoire?.pickFile) {
+      masterInputRef.current?.click();
+      return;
+    }
+    const picked = await window.__grimoire.pickFile(
+      "Select master data file",
+      "Excel workbooks (*.xlsx;*.xls)|*.xlsx;*.xls|CSV (*.csv)|*.csv|All files (*.*)|*.*",
+    );
+    if (!picked) return;
+    try {
+      const res = await apiJson<MasterDataUploadResponse>("/api/ean-renamer/master-data/upload-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: picked }),
+      });
+      setMasterSessionId(res.session_id);
+      setMasterRowCount(res.row_count);
+      setMasterColumns(res.columns_detected);
+      if (res.warnings.length > 0) {
+        setBulkWarnings(res.warnings);
+      }
+      notify(`Master data loaded: ${res.row_count} rows`, { type: "success", message: res.columns_detected.join(" · ") });
+      if (bulkItems.length > 0) {
+        await rematchBulkItems(bulkItems, res.session_id);
+      }
+    } catch (e) {
+      notify("Master data upload failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function rematchBulkItems(items: BulkWorkItem[], sessionId: string) {
+    try {
+      const res = await apiJson<BulkMatchResponse>("/api/ean-renamer/bulk/match-master", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          folders: items.map((item) => ({
+            key: item.key,
+            name: item.name,
+            relativePath: item.relativePath,
+            sampleImageNames: item.images.length > 0
+              ? item.images.slice(0, 5).map((img) => img.name)
+              : item.sampleImages.slice(0, 5).map((img) => img.name),
+          })),
+        }),
+      });
+      setBulkMatchResults(res.results);
+      setBulkMatchSummary(res.summary);
+      applyMatchResultsToItems(res.results);
+      setShowMatchModal(true);
+      void matchBulkImages(items, sessionId);
+    } catch (e) {
+      notify("Match failed", { type: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function matchBulkImages(items: BulkWorkItem[], sessionId: string) {
+    const promises = items.map(async (item) => {
+      const imgs = item.images.length > 0 ? item.images : item.sampleImages;
+      const imageNames = imgs.map((img) => img.name);
+      if (imageNames.length === 0) return { key: item.key, matches: [] as ImageMatchItem[] };
+      try {
+        const res = await apiJson<ImageMatchResponse>("/api/ean-renamer/match-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, image_names: imageNames }),
+        });
+        return { key: item.key, matches: res.matches };
+      } catch {
+        return { key: item.key, matches: [] as ImageMatchItem[] };
+      }
+    });
+    const results = await Promise.all(promises);
+    const matchMap = new Map(results.map((r) => [r.key, r.matches]));
+    setBulkItems((prev) =>
+      prev.map((item) => {
+        const matches = matchMap.get(item.key);
+        return matches && matches.length > 0 ? { ...item, imageMatches: matches } : item;
+      }),
+    );
+  }
+
+  function applyMatchResultsToItems(results: BulkMatchResult[]) {
+    const resultMap = new Map(results.map((r) => [r.key, r]));
+    setBulkItems((prev) =>
+      prev.map((item) => {
+        if (item.matchSource === "manual") return item;
+        const match = resultMap.get(item.key);
+        if (!match || match.status === "unmatched") return item;
+        const idx = match.selected_index ?? 0;
+        const best = match.candidates[idx];
+        if (!best) return item;
+        return {
+          ...item,
+          ean: best.ean || item.ean,
+          productName: best.product_name || item.productName,
+          matchSource: "master" as const,
+          matchTier: best.tier,
+          matchConfidence: best.confidence,
+        };
+      }),
+    );
+  }
+
+  function handleMatchModalSelect(key: string, candidateIdx: number) {
+    setBulkMatchResults((prev) =>
+      prev.map((r) =>
+        r.key === key
+          ? { ...r, selected_index: candidateIdx, status: "matched" as const }
+          : r,
+      ),
+    );
+  }
+
+  function confirmMatchResults() {
+    applyMatchResultsToItems(bulkMatchResults);
+    setShowMatchModal(false);
+  }
+
   async function openBulkItemSingle(item: BulkWorkItem) {
     setActiveBulkKey(item.key);
     setBulkItems((prev) =>
@@ -431,11 +651,13 @@ export function EanRenamerView() {
             : entry
       )
     );
-    setViewMode("single");
-    await loadFolder(item.folderPath);
+    const loadedFolder = await loadFolder(item.folderPath);
+    if (!loadedFolder) return;
     setCustomEan(item.ean.trim());
     setProductName(item.productName.trim());
     setProductNameContinuous(!!item.productName.trim());
+    setViewMode("single");
+    await startClipClassification(loadedFolder.folderPath, loadedFolder.images);
   }
 
   function nextBulkItem(afterKey?: string | null) {
@@ -501,6 +723,37 @@ export function EanRenamerView() {
 
   /* ── Selection ── */
 
+  const lastClickedIdRef = useRef<string | null>(null);
+
+  function handleCardClick(e: React.MouseEvent, id: string, colKey?: string) {
+    if (e.button !== 0) return;
+    if (e.shiftKey && lastClickedIdRef.current && colKey) {
+      const col = columns.find((c) => c.key === colKey);
+      if (col) {
+        const ids = col.imageIds;
+        const a = ids.indexOf(lastClickedIdRef.current);
+        const b = ids.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const [start, end] = a < b ? [a, b] : [b, a];
+          setSelected((prev) => {
+            const next = new Set(prev);
+            for (let i = start; i <= end; i++) next.add(ids[i]);
+            return next;
+          });
+          lastClickedIdRef.current = id;
+          return;
+        }
+      }
+    }
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    lastClickedIdRef.current = id;
+  }
+
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -513,43 +766,31 @@ export function EanRenamerView() {
   /* ── Drag and drop ── */
 
   function handleDragStart(e: React.DragEvent, imageId: string, sourceKey?: string) {
-    const ids = [imageId];
+    const isCardSelected = selected.has(imageId);
+    const ids = isCardSelected ? Array.from(selected) : [imageId];
     setDragIds(ids);
     setDragSourceKey(sourceKey || null);
-    setDragPoint({ x: e.clientX, y: e.clientY });
     setHoverPreview(null);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", ids.join(","));
-    /* ghost */
     const ghost = document.createElement("div");
     ghost.className = "ren-drag-ghost";
-    ghost.textContent = "Drag over cards to group";
+    ghost.textContent = `${ids.length} image${ids.length > 1 ? "s" : ""}`;
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 30, 16);
     requestAnimationFrame(() => ghost.remove());
   }
 
-  function handleDragMove(e: React.DragEvent) {
-    if (dragIds.length === 0) return;
-    setDragPoint({ x: e.clientX, y: e.clientY });
-  }
-
-  function handleCardDragEnter(e: React.DragEvent, imageId: string, colKey?: string) {
-    handleDragMove(e);
-    if (!colKey || !dragSourceKey || colKey !== dragSourceKey) return;
-    setDragIds((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
-  }
-
   function handleDragOver(e: React.DragEvent, colKey: string) {
     e.preventDefault();
-    handleDragMove(e);
     e.dataTransfer.dropEffect = "move";
     setDropTarget(colKey);
     setDuplicateDropTarget(null);
     setDuplicateGroupDropTarget(null);
   }
 
-  function handleDragLeave() {
+  function handleDragLeave(e: React.DragEvent) {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setDropTarget(null);
     setDuplicateDropTarget(null);
     setDuplicateGroupDropTarget(null);
@@ -582,16 +823,28 @@ export function EanRenamerView() {
     });
     setDragIds([]);
     setDragSourceKey(null);
-    setDragPoint(null);
+    setSelected(new Set());
   }
 
   function handleDuplicateDragOver(e: React.DragEvent, bucket: string) {
     e.preventDefault();
     e.stopPropagation();
-    handleDragMove(e);
     e.dataTransfer.dropEffect = "move";
     setDropTarget("duplicate");
     setDuplicateDropTarget(bucket);
+    setDuplicateGroupDropTarget(null);
+  }
+
+  function handleDuplicateDragLeave(e: React.DragEvent) {
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setDuplicateDropTarget(null);
+    setDuplicateGroupDropTarget(null);
+  }
+
+  function handleGroupDragLeave(e: React.DragEvent) {
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setDuplicateGroupDropTarget(null);
   }
 
@@ -620,7 +873,7 @@ export function EanRenamerView() {
     });
     setDragIds([]);
     setDragSourceKey(null);
-    setDragPoint(null);
+    setSelected(new Set());
   }
 
   function handleAddDuplicateGroup(bucket: string) {
@@ -658,16 +911,81 @@ export function EanRenamerView() {
   function handleDragEnd() {
     setDragIds([]);
     setDragSourceKey(null);
-    setDragPoint(null);
     setDropTarget(null);
     setDuplicateDropTarget(null);
     setDuplicateGroupDropTarget(null);
     setHoverPreview(null);
   }
 
+  const hoverThrottleRef = useRef(0);
   function updateHoverPreview(e: React.MouseEvent, image: RenImage) {
     if (dragIds.length > 0) return;
+    const now = Date.now();
+    if (now - hoverThrottleRef.current < 80) return;
+    hoverThrottleRef.current = now;
     setHoverPreview({ image, x: e.clientX, y: e.clientY });
+  }
+
+  function handleAutoSort() {
+    if (imageMatches.size === 0) return;
+    const productToColumn = new Map<string, string>();
+    const allImageIds = columns.flatMap((c) => c.imageIds);
+
+    for (const id of allImageIds) {
+      const img = imageMap.get(id);
+      if (!img) continue;
+      const match = imageMatches.get(id);
+      if (!match || !match.best_product) continue;
+      const productKey = (match.best_ean || match.best_product).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      if (!productToColumn.has(productKey)) {
+        const existing = columns.find((c) => !c.fixed && c.key === productKey);
+        if (existing) {
+          productToColumn.set(productKey, existing.key);
+        } else {
+          const label = match.best_product.length > 25 ? match.best_product.slice(0, 25) + "…" : match.best_product;
+          productToColumn.set(productKey, `auto-${productKey}`);
+          setColumns((prev) => {
+            if (prev.some((c) => c.key === `auto-${productKey}`)) return prev;
+            const dupIdx = prev.findIndex((c) => c.key === "duplicate");
+            const newCol: KanbanColumn = { key: `auto-${productKey}`, title: label, imageIds: [] };
+            if (dupIdx >= 0) {
+              const copy = [...prev];
+              copy.splice(dupIdx, 0, newCol);
+              return copy;
+            }
+            return [...prev, newCol];
+          });
+        }
+      }
+    }
+
+    setColumns((prev) => {
+      const next = prev.map((c) => ({ ...c, imageIds: [...c.imageIds] }));
+      const unsorted = next.find((c) => c.key === "unsorted");
+      if (!unsorted) return next;
+
+      const toMove: { id: string; targetKey: string }[] = [];
+      for (const id of [...unsorted.imageIds]) {
+        const img = imageMap.get(id);
+        if (!img) continue;
+        const match = imageMatches.get(id);
+        if (!match || !match.best_product) continue;
+        const productKey = (match.best_ean || match.best_product).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+        const targetKey = productToColumn.get(productKey);
+        if (targetKey) toMove.push({ id, targetKey });
+      }
+
+      for (const { id, targetKey } of toMove) {
+        unsorted.imageIds = unsorted.imageIds.filter((i) => i !== id);
+        const target = next.find((c) => c.key === targetKey);
+        if (target) target.imageIds.push(id);
+      }
+
+      return next;
+    });
+
+    const moved = Array.from(imageMatches.values()).filter((m) => m.best_product).length;
+    notify("Auto-sorted", { type: "success", message: `${moved} images sorted by product match` });
   }
 
   /* ── Column management ── */
@@ -824,6 +1142,7 @@ export function EanRenamerView() {
   async function handlePreview() {
     if (!folderPath) return;
     setBusy(true);
+    void commitCorrections();
     try {
       const result = await apiJson<RenameResult>("/api/ean-renamer/batch/preview", {
         method: "POST",
@@ -842,6 +1161,7 @@ export function EanRenamerView() {
   async function handleApply() {
     if (!folderPath) return;
     setBusy(true);
+    void commitCorrections();
     try {
       const result = await apiJson<RenameResult>("/api/ean-renamer/batch/apply", {
         method: "POST",
@@ -927,7 +1247,6 @@ export function EanRenamerView() {
       if (e.key !== "Escape") return;
       setDragIds([]);
       setDragSourceKey(null);
-      setDragPoint(null);
       setDropTarget(null);
       setDuplicateDropTarget(null);
       setDuplicateGroupDropTarget(null);
@@ -956,132 +1275,52 @@ export function EanRenamerView() {
   function renderImageCard(id: string, colKey?: string) {
     const img = imageMap.get(id);
     if (!img) return null;
-    const isSelected = selected.has(id);
-    const isGrouped = dragIds.includes(id);
-    const isSeed = dragIds[0] === id;
-    const canGroupHere = dragIds.length > 0 && !!colKey && colKey === dragSourceKey && !isGrouped;
-    const showPriority = colKey && priorityEnabled[colKey];
-    const isPriority = colKey ? isImagePriority(colKey, id) : false;
     return (
-      <div
+      <ImageCard
         key={id}
-        className={`ren-card ${isSelected ? "ren-card-selected" : ""} ${isGrouped ? "ren-card-grouped" : ""} ${isSeed ? "ren-card-group-seed" : ""} ${canGroupHere ? "ren-card-can-group" : ""} ${isPriority ? "ren-card-priority" : ""}`}
-        draggable
-        onMouseEnter={(e) => updateHoverPreview(e, img)}
-        onMouseMove={(e) => updateHoverPreview(e, img)}
-        onMouseLeave={() => setHoverPreview(null)}
-        onDragStart={(e) => handleDragStart(e, id, colKey)}
-        onDrag={(e) => handleDragMove(e)}
-        onDragOver={(e) => handleDragMove(e)}
-        onDragEnter={(e) => handleCardDragEnter(e, id, colKey)}
+        id={id}
+        image={img}
+        colKey={colKey}
+        folderPath={folderPath}
+        isSelected={selected.has(id)}
+        isDragging={dragIds.includes(id)}
+        showPriority={!!(colKey && priorityEnabled[colKey])}
+        isPriority={colKey ? isImagePriority(colKey, id) : false}
+        match={imageMatches.get(id)}
+        clipClassification={clipClassifications.get(id)}
+        hasRenamePlan={renamePlan.some((p) => p.id === id && (p.status || "rename") === "rename")}
+        onCardClick={handleCardClick}
+        onToggleSelect={toggleSelect}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-      >
-        <input
-          type="checkbox"
-          className="ren-card-check"
-          checked={isSelected}
-          onChange={() => toggleSelect(id)}
-        />
-        <div className="ren-card-thumb">
-          <img src={thumbnailUrl(id, folderPath)} alt={img.name} loading="lazy" />
-        </div>
-        <div className="ren-card-meta">
-          <span className="ren-card-name" title={img.name}>{img.name}</span>
-          <span className="ren-card-info">
-            {img.width}&times;{img.height} &middot; {formatFileSize(img.sizeBytes)}
-          </span>
-          <div className="ren-card-chips">
-            <span className="ren-chip">{img.extension.toUpperCase()}</span>
-            {renamePlan.some((p) => p.id === id && (p.status || "rename") === "rename") && (
-              <span className="ren-chip ren-chip-renamed">renamed</span>
-            )}
-            {isGrouped && (
-              <span className="ren-chip ren-chip-grouped">{isSeed ? "drag start" : "grouped"}</span>
-            )}
-            {canGroupHere && <span className="ren-chip ren-chip-can-group">add</span>}
-          </div>
-        </div>
-        {showPriority && (
-          <button
-            className={`ren-priority-btn ${isPriority ? "ren-priority-active" : ""}`}
-            title={isPriority ? "Remove first-image priority" : "Label as first image"}
-            onClick={(e) => { e.stopPropagation(); colKey && togglePriorityImage(colKey, id); }}
-          >
-            ★
-          </button>
-        )}
-        <span className="ren-card-grip" title="Drag">&#9776;</span>
-      </div>
+        onHoverEnter={updateHoverPreview}
+        onHoverMove={updateHoverPreview}
+        onHoverLeave={() => setHoverPreview(null)}
+        onTogglePriority={togglePriorityImage}
+      />
     );
   }
 
   function renderBulkWorking() {
     return (
-      <div className="ren-bulk">
-        <div className="ren-bulk-toolbar">
-          <div className="ren-bulk-summary">
-            <div><span>Folders</span><strong>{bulkItems.length}</strong></div>
-            <div><span>Images</span><strong>{bulkItems.reduce((sum, item) => sum + item.imageCount, 0)}</strong></div>
-            <div><span>Matched</span><strong className="ren-ok">{bulkReadyCount}</strong></div>
-            <div><span>Missing</span><strong className={bulkMissingCount ? "ren-warn" : ""}>{bulkMissingCount}</strong></div>
-            <div><span>Done</span><strong>{bulkDoneCount}</strong></div>
-          </div>
-          <div className="ren-bulk-tools">
-            <input ref={mappingInputRef} type="file" hidden accept=".txt,.csv,.tsv,.xlsx,.xls" onChange={(e) => void handleBulkImport(e.currentTarget.files?.[0], "file")} />
-            <input ref={masterInputRef} type="file" hidden accept=".xlsx,.xls,.csv,.txt,.tsv" onChange={(e) => void handleBulkImport(e.currentTarget.files?.[0], "master")} />
-            <button className="btn btn-secondary btn-sm" onClick={() => mappingInputRef.current?.click()}>Import EAN + Name</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => masterInputRef.current?.click()}>Match Master Data</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => void openNextBulkBatch()} disabled={bulkItems.length === 0 || busy}>Open Next Batch</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => (bulkRootPath || folderPath) && loadBulkFolder(bulkRootPath || folderPath)} disabled={!(bulkRootPath || folderPath) || busy}>Rescan</button>
-          </div>
-        </div>
-        {bulkWarnings.length > 0 && <div className="ren-bulk-warning">{bulkWarnings.join(" ")}</div>}
-        {bulkItems.length === 0 ? (
-          <div className="ren-bulk-empty">
-            <strong>Select a root folder to start Bulk Working</strong>
-            <span>The scan lists direct images and each subfolder with image counts. Video files such as MP4 are ignored.</span>
-          </div>
-        ) : (
-          <div className="ren-bulk-grid">
-            {bulkItems.map((item) => {
-              const ready = !!item.ean.trim();
-              const statusText = item.status === "pending" ? (ready ? "ready" : "missing") : item.status;
-              return (
-                <article key={item.key} className={`ren-bulk-card ${ready ? "ready" : "missing"} status-${item.status}`}>
-                  <div className="ren-bulk-card-head">
-                    <div>
-                      <strong title={item.relativePath}>{item.name}</strong>
-                      <span>{item.relativePath === "." ? "Root folder" : item.relativePath}</span>
-                    </div>
-                    <span className={`ren-bulk-status ${ready ? "ready" : "missing"} status-${item.status}`}>{statusText}</span>
-                  </div>
-                  <div className="ren-bulk-thumbs">
-                    {item.sampleImages.map((image) => <img key={image.id} src={thumbnailUrl(image.id, folderPath)} alt={image.name} loading="lazy" />)}
-                    {item.sampleImages.length === 0 && <span>No images</span>}
-                  </div>
-                  <div className="ren-bulk-meta">
-                    <span>{item.imageCount} images</span>
-                    <span>{item.imageIds.length} files queued</span>
-                    <span>{ready ? `EAN ${item.ean}` : "EAN needed"}</span>
-                  </div>
-                  <label className="ren-bulk-field">
-                    <span>EAN</span>
-                    <input value={item.ean} onChange={(e) => updateBulkItem(item.key, { ean: e.target.value, matchSource: "manual" })} placeholder="Enter EAN" />
-                  </label>
-                  <label className="ren-bulk-field">
-                    <span>Product name</span>
-                    <input value={item.productName} onChange={(e) => updateBulkItem(item.key, { productName: e.target.value, matchSource: "manual" })} placeholder="Optional" />
-                  </label>
-                  <div className="ren-bulk-card-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => void openBulkItemSingle(item)}>Open Batch</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => skipBulkItem(item.key)} disabled={item.status === "done"}>Skip</button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <BulkWorkingView
+        bulkItems={bulkItems} bulkWarnings={bulkWarnings}
+        bulkReadyCount={bulkReadyCount} bulkMissingCount={bulkMissingCount}
+        bulkDoneCount={bulkDoneCount} masterSessionId={masterSessionId}
+        masterRowCount={masterRowCount} masterColumns={masterColumns}
+        bulkMatchSummary={bulkMatchSummary} busy={busy}
+        bulkRootPath={bulkRootPath} folderPath={folderPath}
+        mappingInputRef={mappingInputRef} masterInputRef={masterInputRef}
+        onImportLegacy={(file, source) => void handleBulkImportLegacy(file, source)}
+        onMasterUpload={(file) => void handleMasterUpload(file)}
+        onMasterPick={() => void handleMasterPick()}
+        onShowMatchModal={() => setShowMatchModal(true)}
+        onOpenNextBatch={() => void openNextBulkBatch()}
+        onLoadBulkFolder={loadBulkFolder}
+        onUpdateItem={updateBulkItem}
+        onOpenItemSingle={openBulkItemSingle}
+        onSkipItem={skipBulkItem}
+      />
     );
   }
 
@@ -1090,175 +1329,46 @@ export function EanRenamerView() {
       <style>{CSS}</style>
 
       {/* ── Top bar ── */}
-      <div className="ren-topbar">
-        <div className="ren-topbar-row">
-          <div className="ren-mode-switch">
-            <button className={viewMode === "single" ? "active" : ""} onClick={() => setViewMode("single")}>Single Folder</button>
-            <button
-              className={viewMode === "bulk" ? "active" : ""}
-              onClick={() => {
-                returnToBulkWorking();
-                if ((bulkRootPath || folderPath) && bulkItems.length === 0) void loadBulkFolder(bulkRootPath || folderPath);
-              }}
-            >
-              Bulk Working
-            </button>
-          </div>
-          <div className="ren-folder-group">
-            <input className="ren-path-input" readOnly value={folderPath} placeholder="No folder selected" />
-            <button className="btn btn-primary btn-sm" onClick={handlePickFolder}>Pick Folder</button>
-            <button className="btn btn-secondary btn-sm" onClick={handleOpenPath} disabled={!folderPath}>Open</button>
-            <button className="btn btn-secondary btn-sm" onClick={handleRefresh} disabled={!folderPath}>Refresh</button>
-          </div>
-          <div className="ren-stat-group">
-            <label className="ren-stat">
-              <span>EAN</span>
-              <input className="ren-stat-input" readOnly value={detectedEan} placeholder="--" />
-            </label>
-            <span className={`ren-ean-badge ${eanValid ? "valid" : "warn"}`}>
-              {eanValid ? "✓" : "⚠"}
-            </span>
-            <label className="ren-stat">
-              <span>Custom EAN</span>
-              <input
-                className="ren-stat-input"
-                value={customEan}
-                onChange={(e) => setCustomEan(e.target.value)}
-                placeholder="Override"
-              />
-            </label>
-            <div className="ren-stat ren-product-stat">
-              <span>Product Name</span>
-              <input
-                className="ren-stat-input ren-product-input"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                placeholder="Output name"
-              />
-              <label className="ren-product-continuous" title="Use EAN_ProductName_1, EAN_ProductName_2 naming">
-                <input
-                  type="checkbox"
-                  checked={productNameContinuous}
-                  onChange={(e) => setProductNameContinuous(e.target.checked)}
-                  disabled={!productName.trim()}
-                />
-                <span>EAN_ProductName</span>
-              </label>
-            </div>
-            <div className="ren-stat">
-              <span>Total</span>
-              <strong>{totalImages}</strong>
-            </div>
-            <div className="ren-stat">
-              <span>Selected</span>
-              <strong>{selectedCount}</strong>
-            </div>
-          </div>
-          <div className="ren-settings-wrap" ref={settingsRef}>
-            <button
-              className="btn btn-secondary btn-sm ren-gear"
-              onClick={() => setShowSettings((v) => !v)}
-              title="Settings"
-            >
-              &#9881;
-            </button>
-            {showSettings && (
-              <div className="ren-settings-popover">
-                <h4>Settings</h4>
-                <label className="ren-setting-row">
-                  <span>Action</span>
-                  <select
-                    value={settings.outputMode}
-                    onChange={(e) => setSettings((s) => ({ ...s, outputMode: e.target.value as OutputMode }))}
-                  >
-                    <option value="copy">Copy</option>
-                    <option value="in-folder">In-folder rename</option>
-                  </select>
-                </label>
-                <label className="ren-setting-row">
-                  <span>Naming mode</span>
-                  <select
-                    value={settings.namingMode}
-                    onChange={(e) => setSettings((s) => ({ ...s, namingMode: e.target.value as NamingMode }))}
-                  >
-                    <option value="per-category">Per category</option>
-                    <option value="continuous">Continuous</option>
-                    <option value="prefixed">Prefixed</option>
-                  </select>
-                </label>
-                <label className="ren-setting-row">
-                  <span>Dark mode</span>
-                  <input type="checkbox" checked disabled />
-                </label>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <TopBar
+        viewMode={viewMode} setViewMode={setViewMode}
+        folderPath={folderPath} detectedEan={detectedEan}
+        customEan={customEan} setCustomEan={setCustomEan}
+        productName={productName} setProductName={setProductName}
+        productNameContinuous={productNameContinuous} setProductNameContinuous={setProductNameContinuous}
+        images={images} totalImages={totalImages} selectedCount={selectedCount}
+        masterSessionId={masterSessionId} imageMatches={imageMatches}
+        imageMatchSummary={imageMatchSummary}
+        clipBusy={clipBusy} clipProgress={clipProgress}
+        showSettings={showSettings} setShowSettings={setShowSettings}
+        settings={settings} setSettings={setSettings}
+        eanValid={eanValid} bulkRootPath={bulkRootPath} bulkItems={bulkItems}
+        settingsRef={settingsRef}
+        onPickFolder={handlePickFolder} onOpenPath={handleOpenPath}
+        onRefresh={handleRefresh} onMatchImages={matchImagesWithMaster}
+        onAutoSort={handleAutoSort} onAutoClassify={handleAutoClassify}
+        onCancelClassify={handleCancelClassify} onReturnToBulk={returnToBulkWorking}
+        onLoadBulkFolder={loadBulkFolder}
+      />
 
       {/* ── Output bar ── */}
-      <div className="ren-output-bar">
-        <span className="ren-output-label">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          Output
-        </span>
-        <div className="ren-output-fields">
-          {workflowColumns.map((col) => {
-            const category = columnCategoryKey(col.key);
-            const legacyPath = outputFolders[outputLabelForColumn(col)] || outputFolders[col.title];
-            const outputPath = outputFolders[category] || outputFolders[col.key] || legacyPath;
-            return (
-            <div key={col.key} className="ren-output-field" onClick={() => handlePickOutput(category)}>
-              <span className="ren-output-cat">{outputLabelForColumn(col)}</span>
-              <span className="ren-output-path">{outputPath || "Set output"}</span>
-              {outputPath && (
-                <button
-                  className="ren-output-clear"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOutputFolders((prev) => {
-                      const next = { ...prev };
-                      delete next[category];
-                      delete next[col.key];
-                      delete next[col.title];
-                      delete next[outputLabelForColumn(col)];
-                      return next;
-                    });
-                  }}
-                >
-                  &times;
-                </button>
-              )}
-            </div>
-            );
-          })}
-        </div>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => setOutputFolders({})}
-          disabled={Object.keys(outputFolders).length === 0}
-        >
-          Clear all
-        </button>
-      </div>
+      <OutputBar
+        workflowColumns={workflowColumns}
+        outputFolders={outputFolders}
+        onSetOutputFolders={setOutputFolders}
+        onPickOutput={handlePickOutput}
+      />
 
       {/* ── Kanban board ── */}
       {viewMode === "single" && activeBulkItem && (
-        <div className="ren-bulk-active">
-          <div>
-            <span>Bulk batch</span>
-            <strong>{activeBulkItem.name}</strong>
-            <small>{activeBulkItem.imageCount} images - {activeBulkItem.relativePath}</small>
-          </div>
-          <div className="ren-bulk-active-actions">
-            <button className="btn btn-secondary btn-sm" onClick={returnToBulkWorking}>Back to Bulk</button>
-            <button className="btn btn-primary btn-sm" onClick={() => void openNextBulkBatch()}>Next Batch</button>
-          </div>
-        </div>
+        <BulkActiveIndicator
+          item={activeBulkItem}
+          onReturnToBulk={returnToBulkWorking}
+          onNextBatch={() => void openNextBulkBatch()}
+        />
+      )}
+
+      {clipBusy && (
+        <ClipOverlay progress={clipProgress} onCancel={handleCancelClassify} />
       )}
 
       {viewMode === "bulk" ? renderBulkWorking() : (
@@ -1310,7 +1420,7 @@ export function EanRenamerView() {
                       key={key}
                       className={`ren-duplicate-section ${duplicateDropTarget === key ? "ren-duplicate-drop" : ""}`}
                       onDragOver={(e) => handleDuplicateDragOver(e, key)}
-                      onDragLeave={handleDragLeave}
+                      onDragLeave={handleDuplicateDragLeave}
                       onDrop={(e) => handleDuplicateDrop(e, key)}
                     >
                       {duplicateDropTarget === key && dragIds.length > 0 && !duplicateGroupDropTarget && (
@@ -1343,11 +1453,11 @@ export function EanRenamerView() {
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                handleDragMove(e);
                                 setDropTarget("duplicate");
                                 setDuplicateDropTarget(key);
                                 setDuplicateGroupDropTarget(group.id);
                               }}
+                              onDragLeave={handleGroupDragLeave}
                               onDrop={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1368,7 +1478,8 @@ export function EanRenamerView() {
                                       .map((item) => ({
                                         ...item,
                                         imageIds: item.imageIds.filter((id) => !dragIds.includes(id)),
-                                      }));
+                                      }))
+                                      .filter((item) => item.imageIds.length > 0 || item.id === group.id);
                                   });
                                   next[key] = (next[key] || []).map((item) =>
                                     item.id === group.id ? { ...item, imageIds: [...item.imageIds, ...dragIds] } : item
@@ -1377,7 +1488,7 @@ export function EanRenamerView() {
                                 });
                                 setDragIds([]);
                                 setDragSourceKey(null);
-                                setDragPoint(null);
+                                setSelected(new Set());
                               }}
                             >
                               {duplicateGroupDropTarget === group.id && dragIds.length > 0 && (
@@ -1416,11 +1527,6 @@ export function EanRenamerView() {
               </div>
             ) : (
               <div className="ren-col-body">
-                {isDragSourceColumn && (
-                  <div className="ren-source-hint">
-                    Drag over more cards to group them, then drop into another column
-                  </div>
-                )}
                 {isDropColumn && (
                   <div className="ren-drop-hint">
                     Drop {dragIds.length} image{dragIds.length > 1 ? "s" : ""} here
@@ -1441,182 +1547,58 @@ export function EanRenamerView() {
       )}
       {/* ── Footer / Preview panel ── */}
       {hoverPreview && (
-        <div
-          className="ren-hover-preview"
-          style={{
-            left: Math.max(12, Math.min(hoverPreview.x + 18, window.innerWidth - 340)),
-            top: Math.max(12, Math.min(hoverPreview.y + 18, window.innerHeight - 430)),
-          }}
-        >
-          <div className="ren-hover-image-wrap">
-            <img
-              src={thumbnailUrl(hoverPreview.image.id, folderPath)}
-              alt={hoverPreview.image.name}
-            />
-          </div>
-          <div className="ren-hover-name" title={hoverPreview.image.name}>
-            {hoverPreview.image.name}
-          </div>
-          <div className="ren-hover-meta">
-            {hoverPreview.image.width}&times;{hoverPreview.image.height} &middot; {formatFileSize(hoverPreview.image.sizeBytes)} &middot; {hoverPreview.image.extension.toUpperCase()}
-          </div>
-        </div>
+        <HoverPreview image={hoverPreview.image} x={hoverPreview.x} y={hoverPreview.y} folderPath={folderPath} />
       )}
 
-      {dragIds.length > 0 && dragPoint && (
-        <div
-          className="ren-drag-pill"
-          style={{
-            left: Math.max(12, Math.min(dragPoint.x + 18, window.innerWidth - 230)),
-            top: Math.max(12, Math.min(dragPoint.y + 18, window.innerHeight - 82)),
-          }}
-        >
+      {dragIds.length > 0 && (
+        <div className="ren-drag-pill" style={{ left: 16, bottom: 80, top: "auto" }}>
           <strong>{dragIds.length}</strong>
-          <span>{dragIds.length > 1 ? "images grouped" : "image ready"}</span>
-          {dragSourceKey && <small>drag over cards to add</small>}
+          <span>image{dragIds.length > 1 ? "s" : ""} selected</span>
+          <small>drop into a column</small>
         </div>
       )}
 
       {previewExpanded && viewMode === "single" && (
-        <div className="ren-preview-popover">
-          <div className="ren-preview-popover-head">
-            <strong>Rename Preview</strong>
-            <div className="ren-preview-popover-actions">
-              <button className="btn btn-secondary btn-sm" onClick={handlePreview} disabled={busy || !folderPath}>Refresh</button>
-              <button className="ren-modal-close" onClick={() => setPreviewExpanded(false)}>&times;</button>
-            </div>
-          </div>
-          <div className="ren-resize-handle" ref={resizeRef} onMouseDown={handleResizeStart} />
-          <div className="ren-preview-panel" style={{ height: previewHeight }}>
-              <div className="ren-preview-table-wrap">
-                <table className="ren-preview-table">
-                  <thead>
-                    <tr>
-                      <th>Current Name</th>
-                      <th></th>
-                      <th>Output Path</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {renamePlan.slice(0, 50).map((item, i) => (
-                      <tr key={i} className={`ren-plan-${item.status || "rename"}`}>
-                        <td>{item.oldName}</td>
-                        <td className="ren-arrow">&rarr;</td>
-                        <td>{planOutput(item)}</td>
-                      </tr>
-                    ))}
-                    {renamePlan.length === 0 && (
-                      <tr>
-                        <td colSpan={3} className="ren-table-empty">Click Preview to generate rename plan</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="ren-summary-card">
-                <div className="ren-summary-item ren-summary-green">
-                  <strong>{planStats.renamed}</strong>
-                  <span>To rename</span>
-                </div>
-                <div className="ren-summary-item">
-                  <strong>{planStats.skipped}</strong>
-                  <span>Skipped</span>
-                </div>
-                <div className={`ren-summary-item ${planStats.conflicts > 0 ? "ren-summary-amber" : ""}`}>
-                  <strong>{planStats.conflicts}</strong>
-                  <span>Conflicts</span>
-                </div>
-              </div>
-          </div>
-        </div>
+        <PreviewPanel
+          renamePlan={renamePlan}
+          planStats={planStats}
+          previewHeight={previewHeight}
+          resizeRef={resizeRef}
+          busy={busy}
+          folderPath={folderPath}
+          onRefresh={handlePreview}
+          onClose={() => setPreviewExpanded(false)}
+          onResizeStart={handleResizeStart}
+        />
       )}
 
-      <div className="ren-footer">
-        <div className="ren-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => setPreviewExpanded((v) => !v)}
-            disabled={viewMode === "bulk"}
-          >
-            {previewExpanded ? "Hide Preview" : "Show Preview"}
-          </button>
-          <div className="ren-actions-right">
-            {viewMode === "bulk" ? (
-              <>
-                <button className="btn btn-secondary" onClick={() => (bulkRootPath || folderPath) && loadBulkFolder(bulkRootPath || folderPath)} disabled={busy || !(bulkRootPath || folderPath)}>
-                  Rescan
-                </button>
-                <button className="btn btn-primary" onClick={() => void openNextBulkBatch()} disabled={busy || bulkItems.length === 0}>
-                  Open Next Batch
-                </button>
-              </>
-            ) : (
-              <>
-                <button className="btn btn-secondary" onClick={handlePreview} disabled={busy || !folderPath}>
-                  Preview
-                </button>
-                <button className="btn btn-primary" onClick={handleApply} disabled={busy || !folderPath}>
-                  {settings.outputMode === "copy" ? "Copy" : "Rename"}
-                </button>
-                <button className="btn btn-secondary" onClick={handleUndo} disabled={busy || !lastLogPath}>
-                  Undo
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      <Footer
+        viewMode={viewMode} previewExpanded={previewExpanded}
+        setPreviewExpanded={setPreviewExpanded} busy={busy}
+        folderPath={folderPath} settings={settings}
+        bulkRootPath={bulkRootPath} bulkItems={bulkItems} lastLogPath={lastLogPath}
+        onPreview={handlePreview} onApply={handleApply} onUndo={handleUndo}
+        onLoadBulkFolder={loadBulkFolder} onOpenNextBatch={() => void openNextBulkBatch()}
+      />
 
       {/* ── Preview Modal ── */}
       {showPreviewModal && (
-        <div className="ren-modal-overlay" onClick={() => setShowPreviewModal(false)}>
-          <div className="ren-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="ren-modal-header">
-              <h3>Rename Preview</h3>
-              <button className="ren-modal-close" onClick={() => setShowPreviewModal(false)}>&times;</button>
-            </div>
-            <div className="ren-modal-body">
-              <table className="ren-preview-table ren-preview-table-full">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Category</th>
-                    <th>Current Name</th>
-                    <th></th>
-                    <th>Output Path</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {renamePlan.map((item, i) => (
-                    <tr key={i} className={`ren-plan-${item.status || "rename"}`}>
-                      <td>{i + 1}</td>
-                      <td>{item.category}</td>
-                      <td>{item.oldName}</td>
-                      <td className="ren-arrow">&rarr;</td>
-                      <td>{planOutput(item)}</td>
-                      <td>
-                        <span className={`ren-status-badge ren-status-${item.status || "rename"}`}>{item.status || "rename"}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="ren-modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowPreviewModal(false)}>Close</button>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  setShowPreviewModal(false);
-                  handleApply();
-                }}
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </div>
+        <PreviewModal
+          renamePlan={renamePlan}
+          onApply={handleApply}
+          onClose={() => setShowPreviewModal(false)}
+        />
+      )}
+
+      {/* ── Match Results Modal ── */}
+      {showMatchModal && bulkMatchResults.length > 0 && (
+        <MasterDataMatchModal
+          results={bulkMatchResults}
+          summary={bulkMatchSummary}
+          onSelect={handleMatchModalSelect}
+          onConfirm={confirmMatchResults}
+          onClose={() => setShowMatchModal(false)}
+        />
       )}
     </div>
   );
@@ -2075,7 +2057,6 @@ const CSS = `
   min-height: 60px;
 }
 
-.ren-source-hint,
 .ren-drop-hint {
   display: flex;
   align-items: center;
@@ -2086,15 +2067,6 @@ const CSS = `
   font-size: 11px;
   font-weight: 700;
   text-align: center;
-}
-
-.ren-source-hint {
-  border: 1px dashed rgba(56, 189, 248, 0.55);
-  background: rgba(56, 189, 248, 0.09);
-  color: #7dd3fc;
-}
-
-.ren-drop-hint {
   border: 1px solid rgba(249, 115, 22, 0.45);
   background: rgba(249, 115, 22, 0.12);
   color: var(--accent);
@@ -2246,26 +2218,31 @@ const CSS = `
   border-radius: var(--radius-sm);
   cursor: grab;
   transition: border-color 0.15s, opacity 0.15s, box-shadow 0.15s;
+  -webkit-user-drag: element;
+}
+
+.ren-card * {
+  -webkit-user-drag: none;
+}
+
+.ren-card img {
+  pointer-events: none;
 }
 
 .ren-card:hover {
   background: var(--bg-card-hover);
 }
 
-.ren-card-grouped {
-  border-color: #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.28);
-  opacity: 1;
+.ren-card-dragging {
+  opacity: 0.45;
+  border-color: var(--accent);
 }
 
-.ren-card-group-seed {
-  box-shadow: inset 3px 0 0 #38bdf8, 0 0 0 1px rgba(56, 189, 248, 0.28);
-}
-
-.ren-card-can-group {
-  border-style: dashed;
-  border-color: rgba(56, 189, 248, 0.65);
+.ren-card-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  background: rgba(99, 102, 241, 0.06);
+  cursor: grab;
 }
 
 .ren-hover-preview {
@@ -2315,11 +2292,6 @@ const CSS = `
 @keyframes renHoverIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.ren-card-selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft);
 }
 
 .ren-card-check {
@@ -2388,14 +2360,29 @@ const CSS = `
   color: var(--green);
 }
 
-.ren-chip-grouped {
-  background: rgba(56, 189, 248, 0.16);
-  color: #7dd3fc;
+.ren-chip-match-ean {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
 }
 
-.ren-chip-can-group {
-  background: rgba(249, 115, 22, 0.14);
+.ren-chip-match-code {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.ren-chip-match-name {
+  background: rgba(250, 204, 21, 0.15);
+  color: #facc15;
+}
+
+.ren-card-match-product {
+  font-size: 9px;
   color: var(--accent);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .ren-card-grip {
@@ -2689,6 +2676,181 @@ const CSS = `
   justify-content: flex-end;
 }
 
+/* ── Per-image match list in bulk card ── */
+
+.ren-bulk-card.has-matches {
+  grid-column: span 1;
+}
+
+.ren-bulk-img-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+
+.ren-bulk-img-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ren-bulk-img-row:last-child {
+  border-bottom: none;
+}
+
+.ren-bulk-img-row img {
+  width: 40px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.ren-bulk-img-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ren-bulk-img-old {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ren-bulk-img-match-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  font-size: 10px;
+}
+
+.ren-bulk-img-label {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.ren-bulk-img-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.ren-bulk-img-value.matched {
+  color: var(--green);
+}
+
+.ren-bulk-img-value.empty {
+  color: var(--text-muted);
+}
+
+.ren-bulk-img-more {
+  text-align: center;
+  padding: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ── Open View modal ── */
+
+.ren-bulk-view-modal {
+  position: relative;
+  width: min(90vw, 900px);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.ren-bulk-view-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ren-bulk-view-modal-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ren-bulk-view-modal-head strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.ren-bulk-view-modal-head span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ren-bulk-view-modal-body {
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.ren-bulk-view-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ren-bulk-view-table th {
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+}
+
+.ren-bulk-view-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.ren-bulk-view-table tr:hover td {
+  background: rgba(255,255,255,0.03);
+}
+
+.ren-bulk-view-oldname {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted) !important;
+}
+
+.ren-bulk-view-product {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Drag ghost ── */
 .ren-drag-ghost {
   position: fixed;
@@ -2714,11 +2876,12 @@ const CSS = `
   row-gap: 1px;
   align-items: center;
   min-width: 168px;
-  padding: 9px 11px;
+  padding: 9px 14px;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.94);
-  border: 1px solid rgba(56, 189, 248, 0.55);
+  border: 1px solid var(--accent);
   box-shadow: var(--shadow-lg);
+  animation: renHoverIn 0.15s ease;
 }
 
 .ren-drag-pill strong {
@@ -2729,8 +2892,8 @@ const CSS = `
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #38bdf8;
-  color: #07111f;
+  background: var(--accent);
+  color: #fff;
   font-size: 14px;
   font-weight: 800;
 }
@@ -3006,5 +3169,139 @@ const CSS = `
   gap: 8px;
   padding: 14px 20px;
   border-top: 1px solid var(--border);
+}
+
+/* ── Tier badges ── */
+.ren-tier-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ren-tier-ean { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.ren-tier-code { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+.ren-tier-name { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+.ren-tier-none { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+/* ── Match modal ── */
+.ren-match-modal { max-width: 900px; }
+.ren-match-summary {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.ren-match-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ren-match-stat span { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+.ren-match-stat strong { font-size: 18px; }
+.ren-match-ok strong { color: #4ade80; }
+.ren-match-amb strong { color: #facc15; }
+.ren-match-miss strong { color: #ef4444; }
+.ren-match-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  max-width: 240px;
+}
+.ren-row-ambiguous { background: rgba(250, 204, 21, 0.06); }
+
+/* ── CLIP classify ── */
+.btn-clip {
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+.btn-clip:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-clip:disabled { opacity: 0.5; }
+.btn-danger { background: #ef4444; color: #fff; border: none; }
+.btn-danger:hover { filter: brightness(1.1); }
+
+.ren-clip-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 0 8px;
+}
+.ren-clip-phase {
+  text-transform: capitalize;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.ren-clip-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.ren-clip-overlay-inner {
+  background: var(--bg-surface, #1e1e2e);
+  border-radius: 12px;
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.ren-clip-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(124,58,237,0.2);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: ren-spin 0.8s linear infinite;
+}
+@keyframes ren-spin { to { transform: rotate(360deg); } }
+.ren-clip-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(124,58,237,0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.ren-clip-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #6366f1);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.ren-chip-clip-auto {
+  background: rgba(34,197,94,0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.ren-chip-clip-review {
+  background: rgba(250,204,21,0.15);
+  color: #eab308;
+  border: 1px solid rgba(250,204,21,0.3);
+}
+.ren-chip-clip-uncertain {
+  background: rgba(239,68,68,0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.3);
 }
 `;

@@ -23,8 +23,13 @@ public partial class MainWindow : Window
     {
         FitWindowToWorkArea();
         UpdateStatus("Starting backend...");
-        var ok = await _backend.StartAsync();
 
+        var backendTask = _backend.StartAsync();
+        var webviewTask = PrepareWebView();
+
+        await Task.WhenAll(backendTask, webviewTask);
+
+        var ok = backendTask.Result;
         if (!ok)
         {
             UpdateStatus("Backend failed to start. Check logs.");
@@ -38,7 +43,7 @@ public partial class MainWindow : Window
         }
 
         UpdateStatus("Loading UI...");
-        await InitWebView();
+        NavigateWebView();
         _backendWatchdog.Start();
         _ = Task.Run(async () =>
         {
@@ -63,7 +68,9 @@ public partial class MainWindow : Window
         Top = workArea.Top + Math.Max(0, (workArea.Height - Height) / 2);
     }
 
-    private async Task InitWebView()
+    private string? _wwwroot;
+
+    private async Task PrepareWebView()
     {
         var userDataFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -83,14 +90,13 @@ public partial class MainWindow : Window
         settings.IsZoomControlEnabled = true;
         settings.AreDevToolsEnabled = true;
 
-        var wwwroot = FindWwwRoot();
-        if (wwwroot != null)
+        _wwwroot = FindWwwRoot();
+        if (_wwwroot != null)
         {
             WebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                "grimoire.local", wwwroot,
+                "grimoire.local", _wwwroot,
                 CoreWebView2HostResourceAccessKind.Allow);
 
-            // SPA fallback: intercept navigation to non-file paths and serve index.html
             WebView.CoreWebView2.AddWebResourceRequestedFilter(
                 "https://grimoire.local/*",
                 CoreWebView2WebResourceContext.Document);
@@ -98,12 +104,10 @@ public partial class MainWindow : Window
             WebView.CoreWebView2.WebResourceRequested += (sender, args) =>
             {
                 var uri = new Uri(args.Request.Uri);
-
-                // If the path has no file extension, it's a SPA route — serve index.html
                 var path = uri.AbsolutePath.TrimStart('/');
                 if (!string.IsNullOrEmpty(path) && !Path.HasExtension(path))
                 {
-                    var indexPath = Path.Combine(wwwroot, "index.html");
+                    var indexPath = Path.Combine(_wwwroot, "index.html");
                     if (File.Exists(indexPath))
                     {
                         var stream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -113,20 +117,9 @@ public partial class MainWindow : Window
                 }
             };
 
-            // Inject API proxy + native bridge BEFORE any page JS runs
             var proxyScript = BuildProxyScript();
             await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(proxyScript);
-
-            // Register C# handler for messages from JS (folder picker, etc.)
             WebView.CoreWebView2.WebMessageReceived += OnWebMessage;
-
-            var indexVersion = File.GetLastWriteTimeUtc(Path.Combine(wwwroot, "index.html")).Ticks;
-            WebView.CoreWebView2.Navigate($"https://grimoire.local/index.html?v={indexVersion}");
-        }
-        else
-        {
-            // Fallback: serve directly from backend (dev mode)
-            WebView.CoreWebView2.Navigate(_backend.BaseUrl);
         }
 
         WebView.CoreWebView2.NavigationCompleted += (_, args) =>
@@ -162,6 +155,19 @@ public partial class MainWindow : Window
                 });
             }
         };
+    }
+
+    private void NavigateWebView()
+    {
+        if (_wwwroot != null)
+        {
+            var indexVersion = File.GetLastWriteTimeUtc(Path.Combine(_wwwroot, "index.html")).Ticks;
+            WebView.CoreWebView2.Navigate($"https://grimoire.local/index.html?v={indexVersion}");
+        }
+        else
+        {
+            WebView.CoreWebView2.Navigate(_backend.BaseUrl);
+        }
     }
 
     private string BuildProxyScript()
@@ -430,5 +436,6 @@ public partial class MainWindow : Window
         _backendWatchdog.Stop();
         _backend.Log -= OnBackendLog;
         _backend.Stop();
+        try { WebView?.Dispose(); } catch { }
     }
 }

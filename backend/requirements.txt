@@ -32,6 +32,11 @@ mediapipe==0.10.35
 rembg==2.0.75
 onnxruntime==1.26.0
 
+# ── CLIP classification ──
+torch>=2.7.0
+open-clip-torch>=2.31.0
+scikit-learn>=1.6.0
+
 # ── Video / media ──
 imageio-ffmpeg==0.6.0
 

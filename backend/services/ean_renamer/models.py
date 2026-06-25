@@ -150,3 +150,85 @@ class BatchApplyRenameResponse(BaseModel):
     logPath: str
     mode: str = "copy"
     outputFolderPath: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Bulk master data matching (3-tier)
+# ---------------------------------------------------------------------------
+
+
+class BulkFolderMatchItem(BaseModel):
+    key: str
+    name: str
+    relativePath: str = ""
+    sampleImageNames: list[str] = Field(default_factory=list)
+
+
+class BulkMatchCandidate(BaseModel):
+    ean: str
+    product_name: str | None = None
+    confidence: float
+    tier: str  # "ean" | "code" | "name"
+    match_source: str
+
+
+class BulkMatchResult(BaseModel):
+    key: str
+    name: str
+    candidates: list[BulkMatchCandidate] = Field(default_factory=list)
+    selected_index: int | None = None
+    status: str = "unmatched"  # "matched" | "ambiguous" | "unmatched"
+
+
+class BulkMatchRequest(BaseModel):
+    session_id: str
+    folders: list[BulkFolderMatchItem]
+
+
+class BulkMatchResponse(BaseModel):
+    results: list[BulkMatchResult] = Field(default_factory=list)
+    summary: dict = Field(default_factory=dict)
+
+
+class BulkMatchOverrideItem(BaseModel):
+    key: str
+    selected_index: int
+
+
+class BulkMatchOverrideRequest(BaseModel):
+    results: list[BulkMatchResult]
+    overrides: list[BulkMatchOverrideItem] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Per-image matching (single folder mode)
+# ---------------------------------------------------------------------------
+
+
+class ImageMatchRequest(BaseModel):
+    session_id: str
+    image_names: list[str]
+
+
+class ImageMatchCandidate(BaseModel):
+    ean: str
+    product_name: str | None = None
+    confidence: float
+    tier: str
+    match_source: str
+
+
+class ImageMatchItem(BaseModel):
+    image_name: str
+    candidates: list[ImageMatchCandidate] = Field(default_factory=list)
+    best_ean: str | None = None
+    best_product: str | None = None
+    best_confidence: float = 0.0
+    best_tier: str | None = None
+    status: str = "unmatched"
+
+
+class ImageMatchResponse(BaseModel):
+    matches: list[ImageMatchItem] = Field(default_factory=list)
+    matched_count: int = 0
+    total_count: int = 0

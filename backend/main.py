@@ -9,6 +9,7 @@ import anyio
 from services.data_maintenance.api import app
 from services.ean_sorter.api import router as sorter_router
 from services.ean_renamer.api import router as renamer_router
+from services.ean_renamer.clip.clip_api import router as clip_router
 from services.packshot_browser.api import router as packshot_browser_router
 
 logger = logging.getLogger("grimoire")
@@ -25,4 +26,5 @@ async def _expand_threadpool() -> None:
 
 app.include_router(sorter_router, prefix="/api/ean-sorter", tags=["EAN Sorter"])
 app.include_router(renamer_router, prefix="/api/ean-renamer", tags=["EAN Renamer"])
+app.include_router(clip_router, prefix="/api/ean-renamer", tags=["CLIP Classifier"])
 app.include_router(packshot_browser_router, prefix="/api/packshot-browser", tags=["Packshot Browser"])
