@@ -60,7 +60,7 @@ Vi du:
 C:\Tools\GRIMOIRE
 D:\Apps\GRIMOIRE
 
-Khong can dat dung D:\GRIMOIRE.
+Khong can dat project o mot duong dan co dinh.
 
 Buoc 2: Mo folder GRIMOIRE.
 

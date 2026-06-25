@@ -47,7 +47,7 @@ Truoc khi zip folder GRIMOIRE:
 
 6. Kiem tra khong con hardcode duong dan may goc trong source/script:
    Tim cac chuoi:
-   - D:\GRIMOIRE
+   - Thu muc ma ban da clone/giai nen GRIMOIRE
    - C:\Users
 
 

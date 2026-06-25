@@ -95,17 +95,18 @@ public sealed class BackendManager
 
     public void Stop()
     {
-        if (_backendProcess is { HasExited: false })
+        var proc = _backendProcess;
+        _backendProcess = null;
+        if (proc is { HasExited: false })
         {
             try
             {
-                _backendProcess.Kill(entireProcessTree: true);
-                _backendProcess.WaitForExit(5000);
+                proc.Kill(entireProcessTree: true);
+                proc.WaitForExit(5000);
             }
             catch { }
         }
-        _backendProcess?.Dispose();
-        _backendProcess = null;
+        proc?.Dispose();
     }
 
     public async Task<bool> IsRunningAsync()

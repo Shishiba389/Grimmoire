@@ -4,11 +4,13 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.dotnet/
 
 # Node
 frontend/node_modules/
 backend/node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 # Desktop build output
 desktop/bin/
@@ -17,11 +19,19 @@ desktop/obj/
 # Storage (runtime data)
 backend/storage/uploads/
 backend/storage/outputs/
+backend/storage/*.db
 diagnostics/
 
 # IDE
 .vscode/
 .idea/
+.claude/launch.json
+
+# Installer/release artifacts
+Installation_Package_Release/build/
+Installation_Package_Release/Releases/
+Installation_Package_Release/snapshots/
+Installation_Package_Release/GRIMOIRE_1.0
 
 # OS
 Thumbs.db
