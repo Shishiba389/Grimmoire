@@ -18,6 +18,3 @@ sqlalchemy
 psycopg[binary]
 pytest
 httpx2
-onnxruntime
-rembg
-mediapipe

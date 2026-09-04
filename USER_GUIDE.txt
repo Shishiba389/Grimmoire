@@ -1,331 +1,91 @@
 GRIMOIRE USER GUIDE
 ===================
 
-Purpose
--------
-GRIMOIRE is a local toolkit for product data and product image workflows.
-It combines data audit, image processing, image review, packshot browsing,
-barcode/EAN sorting, and EAN-based file naming in one desktop app.
+GRIMOIRE is a local Windows application for product-data audit, image review,
+EAN file naming, and high-volume folder processing. It does not upload working
+folders to a cloud service.
 
-Main tabs:
-- Dashboard
-- Data QC
-- Image Edit
-- Images Check
-- Packshot Browser
-- EAN Sorter
-- EAN Renamer
-- Guide
-- Settings
-
-
-Quick Tab Selection
+AVAILABLE WORKFLOWS
 -------------------
-- Use Data QC when you need to audit a master data file, find missing data,
-  invalid formats, duplicates, or rule validation issues.
-- Use Image Edit when you need to batch resize, crop, canvas, upscale,
-  remove background, rename, or export product images.
-- Use Images Check when you need to visually review a folder tree and delete
-  rejected images after confirmation.
-- Use Packshot Browser when you need to search packshots by EAN, folder,
-  filename, or keyword, preview them, and copy selected files.
-- Use EAN Sorter when you need to scan barcodes/EANs and group images into
-  EAN or status folders.
-- Use EAN Renamer when you need to copy or rename product images by EAN,
-  category, duplicate group, product name, and naming rule.
-- Use Guide when users need in-app instructions.
 
+1. Data QC
+   Audit Excel/CSV master data, inspect issues, and download review reports.
 
-1. Starting the App
--------------------
-Desktop mode:
-START_DESKTOP.bat
+2. Images Check
+   Scan a local image folder, review it in slideshow or gallery mode, and mark
+   rejected images. Deletion is permanent after confirmation.
 
-Browser/dev mode:
-START_GRIMOIRE.bat
+3. EAN Renamer
+   Classify one product folder, set output destinations, preview names, then
+   copy or rename files by EAN.
 
-If the backend fails to start:
-1. Close the app.
-2. Run REPAIR_GRIMOIRE.bat.
-3. Start the app again.
-4. If the issue continues, run DIAGNOSE_GRIMOIRE.bat and send diagnostics to support.
+4. Bulk Working
+   Process many product folders through a focused queue. This is the preferred
+   workflow for repeated EAN rename/copy work.
 
+SAFE WORKING RULES
+------------------
 
-2. Dashboard
+- Keep source and output folders separate.
+- Use Copy mode when a naming rule is new or unverified.
+- Always run Preview before Copy or Rename.
+- Do not put a generated output folder inside the source folder.
+- Make a backup before any in-place rename or confirmed deletion.
+
+BULK WORKING
 ------------
-Purpose:
-- Start from a central overview screen.
-- Open each major tool quickly.
-- Use search to jump to tools or workflows.
-- Check build/version information.
 
-How to use:
-1. Open GRIMOIRE.
-2. Use Dashboard cards or the sidebar to open a tool.
-3. Use the top search if you know the workflow keyword.
+1. Click Choose folder and select the root that contains product folders.
+2. Optionally load Master Data or Import Map to prefill EAN and product names.
+3. Use the queue search and status filter to find the next folder.
+4. Open one folder. GRIMOIRE loads its full file list only at this point, so a
+   large queue remains responsive.
+5. Review the automatic image classification. PDF files remain in the queue
+   and are placed in Artwork for manual review; PDFs are not sent to CLIP.
+6. Select files, then use Move selected to or drag them into a category.
+7. Click Manage columns to add a custom category such as Detail shots. Custom
+   columns are remembered on that workstation and appear in the output bar.
+8. Set output folders, click Preview, resolve conflicts, then Copy or Rename.
+9. Click Done or Next to continue through the queue.
 
-Common cases:
-- A new user needs to find the right tool.
-- You want to confirm the current build version.
-- You want to return to a neutral starting point between workflows.
+EAN RENAMER
+-----------
 
+1. Choose one source folder.
+2. Move files into the correct category columns.
+3. Enter or confirm EAN and product name when required.
+4. Choose Copy or Rename in-place, output folders, and naming mode.
+5. Review Preview before applying the operation.
 
-3. Data QC
-----------
-Purpose:
-- Audit master data files.
-- Find missing required fields, invalid formats, duplicate records, and rule issues.
-- Generate reports for correction and team handoff.
+DATA QC
+-------
 
-Key features:
-- Excel/CSV input.
-- Rule-based audit.
-- Missing data detection.
-- Duplicate and validation checks.
-- Exportable audit report.
+1. Open Data QC and upload the original Excel/CSV file.
+2. Run the audit and wait for the report to complete.
+3. Review findings, fix the source file, and re-run when needed.
+4. Download the completed report from the job panel.
 
-How to use:
-1. Open Data QC.
-2. Select or upload the master data file.
-3. Choose audit options if shown.
-4. Run the audit.
-5. Review the summary and generated report.
-6. Correct the source data and run the audit again if needed.
+IMAGES CHECK
+------------
 
-Use Data QC when:
-- A master file is rejected by another system.
-- A team needs a clear list of missing or invalid product fields.
-- You need evidence before asking another team to correct data.
+1. Select the highest safe root folder.
+2. Scan and review files in gallery or slideshow mode.
+3. Mark rejected files.
+4. Recheck the deletion count and confirm only when it is correct.
 
-Notes:
-- If the file cannot be read, check sheet names, header rows, merged cells,
-  protected sheets, and whether the file is an original master file.
-- Keep generated reports separate from source input files.
-
-
-4. Image Edit
--------------
-Purpose:
-- Batch process product images for marketplace, catalog, or internal use.
-
-Key features:
-- Add individual image files or select an input folder.
-- Built-in dimension presets.
-- Saved custom dimension presets that remain available next time the app opens.
-- Width, height, aspect lock, fit mode, margin, DPI, layout preset, and canvas background.
-- Image filters: remove whitespace, auto product fill, safe padding,
-  white background checks, reject people/hands, remove shadow, and remove background.
-- Standard upscale and Real-ESRGAN upscale when local tools are available.
-- Output format, quality, max file size, naming rule, local folder output, and ZIP output.
-- Outputs panel that keeps recent previews and completed jobs instead of replacing old output.
-
-How to use:
-1. Open Image Edit.
-2. Add image files or choose an input folder.
-3. Select a dimension preset or enter Width and Height manually.
-4. Click Save beside Dimension Preset to store a custom preset for future sessions.
-5. Configure fit mode, layout, canvas, upscale, filters, output format, and naming.
-6. Click Preview (First 1) to test one image.
-7. Adjust settings if the preview is not correct.
-8. Click Start Processing.
-9. Use the Outputs panel to switch between recent previews and completed jobs.
-10. Download the selected completed job when needed.
-
-Use Image Edit when:
-- All images must become 1000x1000, 1500x1500, Amazon main size, or a custom size.
-- Product images have too much whitespace.
-- A batch needs consistent canvas/background/output format.
-- You need to export the same batch with strict naming rules.
-
-Notes:
-- Large images and AI upscale may take more RAM and time.
-- Always preview before processing a large batch.
-- Keep the output folder outside the input folder.
-- Local folder output is written into a timestamped job folder to avoid overwriting old output.
-
-
-5. Images Check
+TROUBLESHOOTING
 ---------------
-Purpose:
-- Visually review image folders.
-- Mark bad images.
-- Delete selected rejected files only after confirmation.
 
-Key features:
-- Folder scan.
-- Slideshow and gallery review modes.
-- Search/filter by image name, folder, or path.
-- Mark for deletion.
-- Confirmed deletion summary.
+- Close and reopen the app after a transient error.
+- Run REPAIR_GRIMOIRE.bat if dependencies or frontend files are damaged.
+- Run DIAGNOSE_GRIMOIRE.bat and keep its output when reporting a reproducible
+  problem.
+- For an update, use the current release patch exactly as provided and restart
+  GRIMOIRE after it completes.
 
-How to use:
-1. Open Images Check.
-2. Choose the folder to review.
-3. Click Scan all.
-4. Use slideshow mode for focused review or gallery mode for faster comparison.
-5. Mark rejected images.
-6. Review the Delete count.
-7. Click Save deletion when you are sure.
+RETIRED MODULES
+---------------
 
-Use Images Check when:
-- A folder contains blurry, duplicated, wrong, or irrelevant images.
-- You need to clean an output folder after Image Edit.
-- You want a visual QA pass before files are shared.
-
-Notes:
-- Deletion is permanent after confirmation.
-- If the goal is only to find and copy good packshots, use Packshot Browser instead.
-
-
-6. Packshot Browser
--------------------
-Purpose:
-- Search, preview, select, and copy existing packshot files without changing the source folder.
-
-Key features:
-- Index local or synced packshot folders without loading every image into the UI at once.
-- Browse the real folder tree on the left with image counts.
-- Load images only after selecting a folder; parent folders include images from their child folders.
-- Search inside the selected folder by EAN, filename, folder, extension, and keywords.
-- Load more images page by page for very large libraries.
-- Hover preview with metadata.
-- Thumbnails load progressively with a limited queue so large folders remain responsive.
-- Cloud-only OneDrive thumbnails use Windows Explorer cached previews when available, without downloading originals.
-- Select and copy files to an output folder.
-- Generate a CSV report.
-- Handle OneDrive cloud-only files carefully.
-
-How to use:
-1. Open Packshot Browser.
-2. Choose the source packshot folder.
-3. Click Scan to index folder metadata and image counts.
-4. Choose a folder from the left panel.
-5. Use search inside the selected folder if needed.
-6. Click Load more thumbnails when the selected folder has more images.
-7. Hover thumbnails to inspect images.
-8. Select the files to collect.
-9. Choose an output folder.
-10. Click Copy selected.
-11. Review the copied files and CSV report.
-
-Use Packshot Browser when:
-- You need all packshots for one EAN or group of EANs.
-- The source folder must stay unchanged.
-- The folder is OneDrive synced and you want to avoid downloading every file.
-
-OneDrive notes:
-- Cloud-only files first try Windows cached thumbnails, then SharePoint online thumbnails when available.
-- Cloud-only files may show a cloud placeholder if no cached or online thumbnail is available.
-- Copy selected may trigger OneDrive to download the selected original files.
-- Keep OneDrive running and connected to the internet.
-
-
-7. EAN Sorter
--------------
-Purpose:
-- Detect barcodes/EANs from images and sort or group files by EAN/status.
-
-Key features:
-- Folder scan.
-- Barcode/EAN detection.
-- Preview of detected results.
-- Grouping or sorting workflow.
-- Report output for detected, missing, and uncertain results.
-- Built-in sorter-specific Guide button.
-
-How to use:
-1. Open EAN Sorter.
-2. Choose the source folder.
-3. Run the scan.
-4. Review detected EANs and missing/uncertain items.
-5. Apply the sort/copy workflow only after review.
-6. Open the generated report if verification is needed.
-
-Use EAN Sorter when:
-- Images arrive unsorted and must be grouped by EAN.
-- Barcode visibility is good enough for detection.
-- Missing barcode files need to be separated for manual follow-up.
-
-Notes:
-- Blurry, cropped, tiny, rotated, or partially hidden barcodes can reduce accuracy.
-- Review results before applying folder changes.
-
-
-8. EAN Renamer
---------------
-Purpose:
-- Copy or rename product images into structured category output with predictable filenames.
-
-Key features:
-- Source folder scan.
-- Drag-and-drop image categorization.
-- Categories: Packshot, Human, Normal Lifestyle, Artwork, Duplicate.
-- Folder-derived EAN or Custom EAN.
-- Copy mode or in-folder Rename mode.
-- Naming modes: per-category, continuous, prefixed, and EAN_ProductName workflows.
-- Per-category output folders.
-- Preview table with output paths and status.
-- Undo for recent operations when logs are available.
-
-How to use:
-1. Open EAN Renamer.
-2. Pick the source folder.
-3. Drag images into the correct category columns.
-4. Set output folders if using Copy mode.
-5. Choose output mode and naming mode in settings.
-6. Enter Custom EAN or Product Name only when required.
-7. Use 1st markers when a specific image should become the first image in a category.
-8. Click Preview.
-9. Review every output path, filename, and status.
-10. Apply Copy or Rename only after the preview is correct.
-
-Use Copy mode when:
-- You are testing a new naming rule.
-- Source files must remain unchanged.
-- The workflow is still being reviewed.
-
-Use in-folder Rename mode when:
-- The source folder is trusted.
-- You have backup or the output has already been previewed.
-- The team wants filenames changed in place.
-
-Duplicate group use:
-- Put multiple files representing the same shot into Duplicate.
-- Example: the same packshot as JPG and PNG can share the same slot number.
-- If two files would create the same filename and extension, Preview will show a conflict.
-
-Notes:
-- Preview is the most important step in EAN Renamer.
-- Fix conflicts before Apply.
-- Undo depends on operation logs and may fail if files are moved or deleted manually after Apply.
-
-
-9. Settings, Repair, and Diagnostics
-------------------------------------
-Purpose:
-- Adjust app-level preferences.
-- Recover from startup or dependency problems.
-- Generate support diagnostics.
-
-How to use:
-1. Use Settings for preferences exposed in the current build.
-2. If the app behaves unexpectedly, close and reopen it.
-3. Run REPAIR_GRIMOIRE.bat if backend or dependency issues appear.
-4. Run DIAGNOSE_GRIMOIRE.bat if repair does not solve the issue.
-5. Send diagnostics to support with a short explanation of what failed.
-
-Notes:
-- Do not delete backend storage or logs unless support asks for it.
-- Keep source and output folders separate during troubleshooting.
-
-
-Best Practices
---------------
-- Preview before any workflow that renames, deletes, or heavily transforms files.
-- Use Copy mode before in-folder Rename mode.
-- Keep source folders and output folders separate.
-- Scan again after files are changed outside the app.
-- Use Image Edit custom presets for repeated marketplace sizes.
-- Use Packshot Browser for safe searching and copying.
-- Use Images Check only when deletion is actually required.
-- Use diagnostics when a bug needs to be reproduced or escalated.
+EAN Sorter, Packshot Browser, SharePoint browsing, and Image Edit are not part
+of this GRIMOIRE build. Image Edit source was moved to its own workspace for a
+future standalone application.
