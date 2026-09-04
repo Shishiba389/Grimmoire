@@ -12,6 +12,7 @@ $AppDir = (Resolve-Path $AppDir).Path
 $ReleasesDir = Join-Path $PackageRoot "Releases"
 $SnapshotDir = Join-Path $PackageRoot "snapshots"
 $CurrentSnapshot = Join-Path $SnapshotDir $Version
+$MigrationRetirements = Join-Path $PackageRoot "retired-files-$Version.txt"
 
 if (-not (Test-Path $AppDir)) {
     throw "Build output not found at $AppDir. Run Build-Installer.ps1 first."
@@ -70,11 +71,14 @@ if (-not $previousManifest) {
 }
 
 if (-not $previousManifest) {
-    Write-Host "      No previous manifest found. Skipping patch generation."
-    Write-Host "      (This is expected for the first release)"
-    Write-Host ""
-    Write-Host "Done. Manifest saved to: $manifestPath"
-    exit 0
+    # A first release still needs a distributable patch: it gives users who
+    # already have an unpacked/portable build the same copy-paste upgrade
+    # route as subsequent delta releases. An empty baseline makes every
+    # current file a patch payload and produces no delete instructions.
+    Write-Host "      No previous manifest found. Creating a full-file patch."
+    $previousManifest = [pscustomobject]@{
+        files = [pscustomobject]@{}
+    }
 }
 
 $prevFiles = @{}
@@ -95,6 +99,18 @@ $deletedFiles = @(
         Where-Object { -not $manifest.ContainsKey($_) } |
         Sort-Object
 )
+
+# The first patch may upgrade installations created before release manifests
+# existed. Carry an explicit, versioned migration list so retired modules are
+# removed even though there is no old manifest to diff against.
+if (-not $prevFiles.Count -and (Test-Path -LiteralPath $MigrationRetirements -PathType Leaf)) {
+    $deletedFiles = @(
+        $deletedFiles +
+        (Get-Content -LiteralPath $MigrationRetirements | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and -not $_.TrimStart().StartsWith("#")
+        })
+    ) | Sort-Object -Unique
+}
 
 Write-Host "      Changed/new files: $($changedFiles.Count) of $($manifest.Count)"
 Write-Host "      Retired files: $($deletedFiles.Count)"
@@ -122,13 +138,22 @@ foreach ($rel in $changedFiles) {
 # The updater consumes this list after copying the new files. It is required
 # for feature retirements, because a ZIP patch alone cannot remove old files.
 $deleteManifest = Join-Path $patchDir ".grimoire-delete.txt"
-$deletedFiles | Set-Content -LiteralPath $deleteManifest -Encoding UTF8
+$deleteContent = ($deletedFiles -join [Environment]::NewLine)
+[System.IO.File]::WriteAllText($deleteManifest, $deleteContent, [System.Text.UTF8Encoding]::new($false))
 
 $patchZip = Join-Path $ReleasesDir "Grimoire-$Version-patch.zip"
 if (Test-Path $patchZip) {
     Remove-Item -LiteralPath $patchZip -Force
 }
-Compress-Archive -Path "$patchDir\*" -DestinationPath $patchZip -CompressionLevel Optimal
+# Compress-Archive buffers too aggressively for the desktop runtime (tens of
+# thousands of files, including ML assets). Windows ships bsdtar/libarchive,
+# which streams the archive with a bounded memory footprint.
+# The deletion manifest is written before archive creation, so the directory
+# traversal includes it exactly once alongside the payload.
+& tar.exe -a -c -f $patchZip -C $patchDir .
+if ($LASTEXITCODE -ne 0) {
+    throw "Patch archive creation failed (tar exit code $LASTEXITCODE)."
+}
 
 Remove-Item -LiteralPath $patchDir -Recurse -Force
 
