@@ -233,11 +233,10 @@ def undo_last_rename(request: UndoRequest) -> UndoResponse:
 
 
 # ---------------------------------------------------------------------------
-# Master data matching for Bulk mode (reuses ean_sorter's 3-tier matcher)
+# Master data matching for Bulk mode (3-tier matcher)
 # ---------------------------------------------------------------------------
 
-from services.ean_sorter.matcher import MasterDataMatcher
-from services.ean_sorter.models import ImageRecord, MasterDataRow, MasterDataUploadResponse
+from services.shared.master_data import ImageRecord, MasterDataMatcher, MasterDataRow, MasterDataUploadResponse
 
 _master_sessions: dict[str, tuple[MasterDataMatcher, list[MasterDataRow], float]] = {}
 _MASTER_TTL = 7200

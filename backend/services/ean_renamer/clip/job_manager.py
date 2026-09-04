@@ -184,21 +184,24 @@ class JobManager:
                 user_thresholds = json.loads(thresh_file.read_text(encoding="utf-8"))
 
             job.progress.phase = "scanning"
-            folder = Path(job.folder_path)
-            from services.ean_renamer.services.folder_scanner import MEDIA_EXTENSIONS, SKIPPED_DIR_NAMES_NORMALIZED
+            from services.ean_renamer.services.folder_scanner import SKIPPED_DIR_NAMES_NORMALIZED, image_id_for_name
+            from .media_inspector import SUPPORTED_EXTENSIONS
             image_paths: list[Path] = []
             image_ids: list[str] = []
             relative_paths: list[str] = []
 
+            folder = Path(job.folder_path)
             import os
             for root_str, dirs, files in os.walk(folder):
                 root_dir = Path(root_str)
                 dirs[:] = [d for d in dirs if d.lower() not in SKIPPED_DIR_NAMES_NORMALIZED]
                 for f in sorted(files):
                     fp = root_dir / f
-                    if fp.suffix.lower() in MEDIA_EXTENSIONS:
+                    # PDF documents are valid Bulk Working artifacts but cannot be
+                    # encoded by CLIP. Keep them in the manual Artwork workflow and
+                    # do not turn them into failed/corrupt classification records.
+                    if fp.suffix.lower() in SUPPORTED_EXTENSIONS:
                         image_paths.append(fp)
-                        from services.ean_renamer.services.folder_scanner import image_id_for_name
                         rel = str(fp.relative_to(folder)).replace("\\", "/")
                         image_ids.append(image_id_for_name(rel))
                         relative_paths.append(rel)

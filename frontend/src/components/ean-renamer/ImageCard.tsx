@@ -93,7 +93,7 @@ export const ImageCard = memo(function ImageCard(props: Props) {
         <button
           className={`ren-priority-btn ${isPriority ? "ren-priority-active" : ""}`}
           title={isPriority ? "Remove first-image priority" : "Label as first image"}
-          onClick={(e) => { e.stopPropagation(); colKey && onTogglePriority(colKey, id); }}
+          onClick={(e) => { e.stopPropagation(); if (colKey) onTogglePriority(colKey, id); }}
         >
           ★
         </button>

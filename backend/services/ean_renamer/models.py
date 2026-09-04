@@ -77,6 +77,7 @@ class BulkFolderItem(BaseModel):
     relativePath: str
     name: str
     imageCount: int
+    documentCount: int = 0
     imageIds: list[str] = Field(default_factory=list)
     images: list[ImageItem] = Field(default_factory=list)
     sampleImages: list[ImageItem] = Field(default_factory=list)

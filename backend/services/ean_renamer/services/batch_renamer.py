@@ -21,16 +21,17 @@ from services.ean_renamer.services.folder_scanner import get_image_path, invalid
 from services.ean_renamer.services.safe_renamer import normalize_output_folder
 
 CATEGORY_OUTPUT_PATHS = {
-    "packshot": ("Packshot", "{ean}"),
-    "lifestyle_human": ("Lifestyle", "Human", "{ean}"),
-    "lifestyle_normal": ("Lifestyle", "Normal", "{ean}"),
-    "artwork": ("Artwork", "{ean}"),
+    "packshot": ("{ean}",),
+    "lifestyle_human": ("Human", "{ean}"),
+    "lifestyle_normal": ("Normal", "{ean}"),
+    "artwork": ("{ean}",),
 }
 STANDARD_CATEGORY_ORDER = tuple(CATEGORY_OUTPUT_PATHS.keys())
 NAMING_MODE_PER_CATEGORY = "per_category"
 NAMING_MODE_CONTINUOUS = "continuous"
 NAMING_MODE_PREFIXED = "prefixed"
-SUPPORTED_NAMING_MODES = {NAMING_MODE_PER_CATEGORY, NAMING_MODE_CONTINUOUS, NAMING_MODE_PREFIXED}
+NAMING_MODE_CUSTOM_NAME = "custom_name"
+SUPPORTED_NAMING_MODES = {NAMING_MODE_PER_CATEGORY, NAMING_MODE_CONTINUOUS, NAMING_MODE_PREFIXED, NAMING_MODE_CUSTOM_NAME}
 OUTPUT_MODE_COPY = "copy"
 OUTPUT_MODE_RENAME = "rename"
 SUPPORTED_OUTPUT_MODES = {OUTPUT_MODE_COPY, OUTPUT_MODE_RENAME}
@@ -82,10 +83,10 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
         assignment_product_name = normalize_product_name(assignment.productName) if request.productNameContinuous else None
         if assignment_product_name:
             naming_mode = NAMING_MODE_CONTINUOUS
-        if not naming_ean:
+        if not naming_ean and naming_mode != NAMING_MODE_CUSTOM_NAME:
             missing_ean_names.append(image.name)
             continue
-        selected.append((naming_ean, assignment.category, assignment.id, assignment.categoryName, assignment_product_name))
+        selected.append((naming_ean or "", assignment.category, assignment.id, assignment.categoryName, assignment_product_name))
 
     if missing_ean_names and not selected:
         preview = ", ".join(missing_ean_names[:3])
@@ -98,6 +99,42 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
     items: list[RenamePlanItem] = []
     conflicts: list[str] = []
     priority_set: set[str] = set(request.priorityIds or [])
+
+    if naming_mode == NAMING_MODE_CUSTOM_NAME:
+        custom_label = normalize_product_name(request.productName) or custom_ean
+        if not custom_label:
+            raise HTTPException(
+                status_code=400,
+                detail="Custom Name mode requires a product name or custom EAN.",
+            )
+        all_ids = [img_id for _ean, _cat, img_id, _cn, _pn in selected]
+        all_ids = _reorder_priority(all_ids, priority_set)
+        has_priority = any(img_id in priority_set for img_id in all_ids)
+        counter = 2 if has_priority else 1
+        for image_id in all_ids:
+            image = images_by_id[image_id]
+            suffix = image.extension.lower()
+            ean_for_item = next((e for e, _c, i, _cn, _pn in selected if i == image_id), custom_ean or "")
+            category_for_item = next((c for _e, c, i, _cn, _pn in selected if i == image_id), "packshot")
+            is_priority = image_id in priority_set
+            num = 1 if is_priority else counter
+            if not is_priority:
+                counter += 1
+            new_name = f"{custom_label}_{num}{suffix}"
+            add_plan_item(
+                items, conflicts, output_roots, root, output_mode,
+                ean_for_item, category_for_item, None,
+                image_id, image.relativePath or image.name, image.name, suffix, new_name,
+            )
+
+        if output_mode == OUTPUT_MODE_RENAME:
+            conflicts = find_in_place_conflicts(root, items)
+
+        return BatchRenamePlanResponse(
+            items=items,
+            skippedCount=len(images_by_id) - len(selected_ids),
+            conflicts=conflicts,
+        )
 
     if naming_mode in {NAMING_MODE_CONTINUOUS, NAMING_MODE_PREFIXED}:
         grouped_by_ean: dict[tuple[str, str | None], dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))

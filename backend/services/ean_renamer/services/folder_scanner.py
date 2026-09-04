@@ -122,16 +122,9 @@ def scan_bulk_folders(folder_path: str) -> BulkScanResponse:
     root = normalize_folder(folder_path)
     folders: list[BulkFolderItem] = []
 
-    direct_images = collect_direct_images_only(root, root.name, root)
-    if direct_images:
-        folders.append(
-            bulk_item_for_images(
-                key="__root__",
-                folder=root,
-                relative_path=".",
-                images=direct_images,
-            )
-        )
+    direct_count, direct_documents, direct_samples = summarize_bulk_media(root, root.name, root, direct_only=True)
+    if direct_count:
+        folders.append(bulk_item_for_summary("__root__", root, ".", direct_count, direct_documents, direct_samples))
 
     try:
         children = sorted(root.iterdir(), key=lambda item: item.name.lower())
@@ -141,15 +134,10 @@ def scan_bulk_folders(folder_path: str) -> BulkScanResponse:
     for child in children:
         if not child.is_dir() or child.name.lower() in SKIPPED_DIR_NAMES_NORMALIZED:
             continue
-        images = collect_images_only(child, child.name, root)
-        folders.append(
-            bulk_item_for_images(
-                key=child.relative_to(root).as_posix(),
-                folder=child,
-                relative_path=child.relative_to(root).as_posix(),
-                images=images,
-            )
-        )
+        count, document_count, samples = summarize_bulk_media(child, child.name, root)
+        if count:
+            relative_path = child.relative_to(root).as_posix()
+            folders.append(bulk_item_for_summary(relative_path, child, relative_path, count, document_count, samples))
 
     return BulkScanResponse(
         folderPath=str(root),
@@ -179,40 +167,78 @@ def collect_images(folder: Path, ean: str, root: Path) -> list[ImageItem]:
     return images
 
 
-def collect_images_only(folder: Path, ean: str, root: Path) -> list[ImageItem]:
-    images: list[ImageItem] = []
-    for path in image_files_under(folder):
-        item = image_item_for_path(path, ean, root)
-        if item:
-            images.append(item)
-    return images
+def summarize_bulk_media(
+    folder: Path,
+    ean: str,
+    root: Path,
+    *,
+    direct_only: bool = False,
+    sample_limit: int = 4,
+) -> tuple[int, int, list[ImageItem]]:
+    """Return a lightweight bulk-folder summary without serialising every file.
+
+    The workspace requests the complete media list only after a user opens a folder.
+    Documents are intentionally included here so PDF artwork cannot disappear from
+    a bulk queue, while video remains outside this image-and-artwork workflow.
+    """
+    count = 0
+    document_count = 0
+    samples: list[ImageItem] = []
+    extensions = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
+
+    def add(path: Path) -> None:
+        nonlocal count, document_count
+        if path.suffix.lower() not in extensions:
+            return
+        count += 1
+        if path.suffix.lower() in DOCUMENT_EXTENSIONS:
+            document_count += 1
+        if len(samples) < sample_limit:
+            item = image_item_for_path(path, ean, root)
+            if item:
+                samples.append(item)
+
+    if direct_only:
+        try:
+            for path in sorted(folder.iterdir(), key=lambda item: item.name.lower()):
+                if path.is_file():
+                    add(path)
+        except OSError:
+            return 0, 0, []
+        return count, document_count, samples
+
+    def on_walk_error(_: OSError) -> None:
+        return None
+
+    for current_root, dir_names, file_names in os.walk(folder, topdown=True, onerror=on_walk_error):
+        dir_names[:] = sorted(
+            [name for name in dir_names if name.lower() not in SKIPPED_DIR_NAMES_NORMALIZED],
+            key=str.lower,
+        )
+        current_path = Path(current_root)
+        for file_name in sorted(file_names, key=str.lower):
+            add(current_path / file_name)
+    return count, document_count, samples
 
 
-def collect_direct_images_only(folder: Path, ean: str, root: Path) -> list[ImageItem]:
-    images: list[ImageItem] = []
-    try:
-        paths = sorted(folder.iterdir(), key=lambda item: item.name.lower())
-    except OSError:
-        return images
-    for path in paths:
-        if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS:
-            continue
-        item = image_item_for_path(path, ean, root)
-        if item:
-            images.append(item)
-    return images
-
-
-def bulk_item_for_images(key: str, folder: Path, relative_path: str, images: list[ImageItem]) -> BulkFolderItem:
+def bulk_item_for_summary(
+    key: str,
+    folder: Path,
+    relative_path: str,
+    file_count: int,
+    document_count: int,
+    samples: list[ImageItem],
+) -> BulkFolderItem:
     return BulkFolderItem(
         key=key,
         folderPath=str(folder),
         relativePath=relative_path,
         name=folder.name,
-        imageCount=len(images),
-        imageIds=[image.id for image in images],
-        images=images,
-        sampleImages=images[:4],
+        imageCount=file_count,
+        documentCount=document_count,
+        imageIds=[image.id for image in samples],
+        images=samples,
+        sampleImages=samples,
     )
 
 
