@@ -1,4 +1,4 @@
-"""Shared Excel / master-data parsing used by both EAN Sorter and EAN Renamer."""
+"""Shared Excel / master-data parsing for GRIMOIRE workflows."""
 
 from __future__ import annotations
 
@@ -12,8 +12,7 @@ from typing import Any
 import pandas as pd
 from fastapi import HTTPException, UploadFile
 
-from services.ean_sorter.matcher import MasterDataMatcher
-from services.ean_sorter.models import MasterDataRow, MasterDataUploadResponse
+from services.shared.master_data import MasterDataMatcher, MasterDataRow, MasterDataUploadResponse
 
 _EAN_KEYS = {"ean", "barcode", "bar_code", "ma_ean", "sku"}
 _CODE_KEYS = {"ot_article_number", "article_code", "code", "article_number", "ot_code", "item_code"}

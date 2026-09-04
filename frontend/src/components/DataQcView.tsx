@@ -279,7 +279,7 @@ function columnsFor(tab: TabName, sheet: ReportSheet | null): string[] {
 
 const AIO_NAV: Array<
   | { section: string; id?: never; label?: never; icon?: never }
-  | { id: AioSubtab | "imageedit"; label: string; icon: Parameters<typeof IconLine>[0]["name"]; section?: never }
+  | { id: AioSubtab; label: string; icon: Parameters<typeof IconLine>[0]["name"]; section?: never }
 > = [
   { section: "DATA_MAINTENANCE" },
   { id: "dqc", label: "Data Quality Control", icon: "shield" },
@@ -289,8 +289,6 @@ const AIO_NAV: Array<
   { id: "history", label: "Audit History", icon: "clock" },
   { id: "reports", label: "Reports", icon: "report" },
   { id: "config", label: "Configuration", icon: "gear" },
-  { section: "IMAGE_EDIT" },
-  { id: "imageedit", label: "Image Edit", icon: "image" },
 ];
 
 const AIO_TITLES: Record<AioSubtab, string> = {
@@ -911,7 +909,6 @@ function AioModal({
 }
 
 export function DataQcView() {
-  const { notify } = useNotifications();
   const [subtab, setSubtab] = useState<AioSubtab>("dqc");
   const [collapsed, setCollapsed] = useState(false);
 
@@ -922,13 +919,7 @@ export function DataQcView() {
     }, 0);
   }
 
-  function navTo(id: AioSubtab | "imageedit") {
-    if (id === "imageedit") {
-      notify("Use the main GRIMOIRE Image Edit tab for the full image workflow.", {
-        type: "info",
-      });
-      return;
-    }
+  function navTo(id: AioSubtab) {
     setSubtab(id);
   }
 

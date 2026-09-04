@@ -182,6 +182,7 @@ export const TopBar = memo(function TopBar(props: Props) {
                   <option value="per-category">Per category</option>
                   <option value="continuous">Continuous</option>
                   <option value="prefixed">Prefixed</option>
+                  <option value="custom-name">Custom name</option>
                 </select>
               </label>
               <label className="ren-setting-row">

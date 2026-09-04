@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { apiJson, pickFolder } from "../ToolShared";
 import { useNotifications } from "../../contexts/NotificationContext";
 import type {
@@ -46,22 +45,57 @@ function applyMappings(items: BulkWorkItem[], entries: BulkMappingEntry[]): Bulk
 }
 
 function normalizeNamingMode(mode: NamingMode): string {
-  return mode === "per-category" ? "per_category" : mode;
+  if (mode === "per-category") return "per_category";
+  if (mode === "custom-name") return "custom_name";
+  return mode;
 }
 
 function normalizeOutputMode(mode: SettingsState["outputMode"]): string {
   return mode === "in-folder" ? "rename" : "copy";
 }
 
+const BULK_COLUMNS_STORAGE_KEY = "grimoire:bulk-working:columns:v1";
+const DEFAULT_COLUMN_KEYS = new Set(DEFAULT_COLUMNS.map((column) => column.key));
+
+function createWorkspaceColumns(template = DEFAULT_COLUMNS): KanbanColumn[] {
+  return template.map((column) => ({ ...column, imageIds: [] }));
+}
+
+function loadWorkspaceColumns(): KanbanColumn[] {
+  try {
+    const raw = window.localStorage.getItem(BULK_COLUMNS_STORAGE_KEY);
+    if (!raw) return createWorkspaceColumns();
+    const saved = JSON.parse(raw) as Array<Pick<KanbanColumn, "key" | "title" | "fixed">>;
+    if (!Array.isArray(saved)) return createWorkspaceColumns();
+
+    const validCustom = saved.filter((column) =>
+      column
+      && typeof column.key === "string"
+      && typeof column.title === "string"
+      && !DEFAULT_COLUMN_KEYS.has(column.key)
+      && /^[a-z0-9-]+$/.test(column.key),
+    );
+    return [...createWorkspaceColumns(), ...validCustom.map((column) => ({ ...column, imageIds: [] }))];
+  } catch {
+    return createWorkspaceColumns();
+  }
+}
+
+function isDocument(image: RenImage): boolean {
+  return image.extension.toLowerCase() === ".pdf";
+}
+
 export function BulkWorkingView() {
   const { notify } = useNotifications();
-  const location = useLocation();
+
 
   /* ── Box list state ── */
   const [rootPath, setRootPath] = useState("");
   const [items, setItems] = useState<BulkWorkItem[]>([]);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [queueQuery, setQueueQuery] = useState("");
+  const [queueStatus, setQueueStatus] = useState<"all" | BulkWorkItem["status"]>("all");
 
   /* ── Master data ── */
   const [masterSessionId, setMasterSessionId] = useState("");
@@ -75,7 +109,10 @@ export function BulkWorkingView() {
   /* ── Active box workspace state ── */
   const [folderPath, setFolderPath] = useState("");
   const [images, setImages] = useState<RenImage[]>([]);
-  const [columns, setColumns] = useState<KanbanColumn[]>(DEFAULT_COLUMNS.map((c) => ({ ...c, imageIds: [] })));
+  const [columns, setColumns] = useState<KanbanColumn[]>(loadWorkspaceColumns);
+  const [columnManagerOpen, setColumnManagerOpen] = useState(false);
+  const [newColumnName, setNewColumnName] = useState("");
+  const [moveTarget, setMoveTarget] = useState("unsorted");
   const [duplicateBuckets, setDuplicateBuckets] = useState<DuplicateBuckets>({ ...EMPTY_DUPLICATE_BUCKETS });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [outputFolders, setOutputFolders] = useState<Record<string, string>>({});
@@ -105,6 +142,16 @@ export function BulkWorkingView() {
 
   const workflowColumns = columns.filter((c) => c.key !== "unsorted" && c.key !== "duplicate");
 
+  const queueItems = useMemo(() => {
+    const query = queueQuery.trim().toLowerCase();
+    return items.filter((item) => {
+      if (queueStatus !== "all" && item.status !== queueStatus) return false;
+      return !query || [item.name, item.ean, item.productName, item.relativePath].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [items, queueQuery, queueStatus]);
+
+  const clipEligibleCount = images.filter((image) => !isDocument(image)).length;
+
   const planStats = (() => {
     let renamed = 0, skipped = 0, conflicts = 0;
     renamePlan.forEach((item) => {
@@ -131,13 +178,10 @@ export function BulkWorkingView() {
     document.addEventListener("mouseup", onUp);
   }
 
-  /* ── Sorter handoff ── */
   useEffect(() => {
-    const state = location.state as { source?: string; folder?: string } | null;
-    if (state?.source === "sorter" && state.folder) {
-      void loadBulkFolder(state.folder);
-    }
-  }, []);
+    const persisted = columns.map(({ key, title, fixed }) => ({ key, title, fixed }));
+    window.localStorage.setItem(BULK_COLUMNS_STORAGE_KEY, JSON.stringify(persisted));
+  }, [columns]);
 
   /* ── CLIP warm-up ── */
   useEffect(() => {
@@ -330,9 +374,13 @@ export function BulkWorkingView() {
       setImageMatches(new Map());
       setClipClassifications(new Map());
       setClipProgress(null);
-      setColumns(DEFAULT_COLUMNS.map((c) =>
-        c.key === "unsorted" ? { ...c, imageIds: result.images.map((img) => img.id) } : { ...c, imageIds: [] },
-      ));
+      const documentIds = result.images.filter(isDocument).map((image) => image.id);
+      const remainingIds = result.images.filter((image) => !isDocument(image)).map((image) => image.id);
+      setColumns(createWorkspaceColumns().map((column) => {
+        if (column.key === "artwork") return { ...column, imageIds: documentIds };
+        if (column.key === "unsorted") return { ...column, imageIds: remainingIds };
+        return column;
+      }));
       setCustomEan(item.ean.trim());
       setProductName(item.productName.trim());
       setSettings((s) => ({ ...s, namingMode: globalNamingMode }));
@@ -393,7 +441,7 @@ export function BulkWorkingView() {
   }
 
   async function startClipClassification(targetPath: string, targetImages: RenImage[]) {
-    if (!targetPath || targetImages.length === 0 || clipBusy) return;
+    if (!targetPath || targetImages.filter((image) => !isDocument(image)).length === 0 || clipBusy) return;
     setClipBusy(true);
     setClipProgress(null);
     setClipClassifications(new Map());
@@ -431,7 +479,9 @@ export function BulkWorkingView() {
       const fresh = prev.map((col) => ({ ...col, imageIds: [] as string[] }));
       for (const img of targetImages) {
         const cls = newMap.get(img.id);
-        const colKey = cls ? (CLIP_CATEGORY_TO_COLUMN[cls.main_category] || "unsorted") : "unsorted";
+        const colKey = isDocument(img)
+          ? "artwork"
+          : cls ? (CLIP_CATEGORY_TO_COLUMN[cls.main_category] || "unsorted") : "unsorted";
         const col = fresh.find((c) => c.key === colKey) || fresh[0];
         col.imageIds.push(img.id);
       }
@@ -461,6 +511,55 @@ export function BulkWorkingView() {
     setSelected(new Set());
     setDragIds([]);
     setDragSourceKey(null);
+  }
+
+  /* ── Column management ── */
+  function handleAddColumn(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newColumnName.trim();
+    if (!name) return;
+    const key = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!key) {
+      notify("Use letters or numbers for the category name", { type: "warning" });
+      return;
+    }
+    if (columns.some((c) => c.key === key)) {
+      notify("Column already exists", { type: "warning" });
+      return;
+    }
+    setColumns((prev) => [...prev, { key, title: name, imageIds: [] }]);
+    setNewColumnName("");
+  }
+
+  function removeCustomColumn(key: string) {
+    if (DEFAULT_COLUMN_KEYS.has(key)) return;
+    setColumns((prev) => {
+      const removed = prev.find((column) => column.key === key);
+      const movedIds = removed?.imageIds || [];
+      return prev
+        .filter((column) => column.key !== key)
+        .map((column) => column.key === "unsorted"
+          ? { ...column, imageIds: [...column.imageIds, ...movedIds.filter((id) => !column.imageIds.includes(id))] }
+          : column);
+    });
+    setOutputFolders((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    if (moveTarget === key) setMoveTarget("unsorted");
+  }
+
+  function moveSelectedTo(targetKey: string) {
+    if (selected.size === 0) return;
+    const ids = [...selected];
+    setColumns((prev) => prev.map((column) => {
+      const withoutMoved = column.imageIds.filter((id) => !ids.includes(id));
+      return column.key === targetKey
+        ? { ...column, imageIds: [...withoutMoved, ...ids.filter((id) => !withoutMoved.includes(id))] }
+        : { ...column, imageIds: withoutMoved };
+    }));
+    setSelected(new Set());
   }
 
   /* ── Output ── */
@@ -562,7 +661,8 @@ export function BulkWorkingView() {
     setSelected((prev) => {
       const next = new Set(prev);
       if (e.ctrlKey || e.metaKey) {
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
       } else {
         next.clear();
         next.add(id);
@@ -603,6 +703,7 @@ export function BulkWorkingView() {
                 <option value="per-category">Per Category</option>
                 <option value="continuous">Continuous</option>
                 <option value="prefixed">Prefixed</option>
+                <option value="custom-name">Custom Name</option>
               </select>
             </label>
           </div>
@@ -614,13 +715,35 @@ export function BulkWorkingView() {
           </div>
         </div>
 
+        {items.length > 0 && (
+          <div className="blk-queue-controls" aria-label="Filter folders">
+            <input
+              value={queueQuery}
+              onChange={(event) => setQueueQuery(event.target.value)}
+              placeholder="Find folder, EAN, or name"
+              aria-label="Find a folder"
+            />
+            <select value={queueStatus} onChange={(event) => setQueueStatus(event.target.value as typeof queueStatus)} aria-label="Filter by status">
+              <option value="all">All status</option>
+              <option value="pending">Pending</option>
+              <option value="active">Active</option>
+              <option value="done">Done</option>
+              <option value="skipped">Skipped</option>
+            </select>
+            <span>{queueItems.length} shown</span>
+          </div>
+        )}
+
         <div className="blk-list">
           {items.length === 0 && (
             <div style={{ textAlign: "center", padding: 32, color: "var(--text-secondary)" }}>
               <strong>Select a root folder to start</strong>
             </div>
           )}
-          {items.map((item) => (
+          {items.length > 0 && queueItems.length === 0 && (
+            <div className="blk-queue-empty">No folders match this filter.</div>
+          )}
+          {queueItems.map((item) => (
             <div
               key={item.key}
               className={`blk-card ${item.status}${activeKey === item.key ? " active" : ""}`}
@@ -629,7 +752,7 @@ export function BulkWorkingView() {
               <div className="blk-card-head">
                 <div>
                   <strong title={item.folderPath}>{item.name}</strong>
-                  <small>{item.imageCount} images</small>
+                  <small>{item.imageCount} files{item.documentCount ? ` · ${item.documentCount} PDF` : ""}</small>
                 </div>
                 <span className={`blk-badge ${item.status}`}>{item.status}</span>
               </div>
@@ -683,11 +806,11 @@ export function BulkWorkingView() {
               <div className="blk-ws-row1">
                 <span className="blk-ws-title" title={activeItem.folderPath}>{activeItem.name}</span>
                 <div className="blk-ws-meta">
-                  <span className="blk-ws-meta-item">{images.length} images</span>
+                  <span className="blk-ws-meta-item">{images.length} files{activeItem.documentCount ? ` · ${activeItem.documentCount} PDF` : ""}</span>
                   {clipClassifications.size > 0 && !clipBusy && (
                     <span className="blk-ws-clip-badge done">
                       <span className="blk-clip-dot" />
-                      AI classified {clipClassifications.size}/{images.length}
+                      AI classified {clipClassifications.size}/{clipEligibleCount}
                     </span>
                   )}
                   {clipBusy && clipProgress && (
@@ -810,6 +933,51 @@ export function BulkWorkingView() {
                   stopClipPolling();
                   setClipBusy(false);
                 }} />
+              )}
+
+              <div className="blk-board-tools" aria-label="Bulk assignment controls">
+                <div>
+                  <strong>{selected.size ? `${selected.size} selected` : "Select files"}</strong>
+                  <span>Drag is optional — move a selection directly.</span>
+                </div>
+                <label>
+                  Move selected to
+                  <select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)}>
+                    {columns.filter((column) => column.key !== "duplicate").map((column) => (
+                      <option key={column.key} value={column.key}>{column.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="btn btn-secondary btn-sm" onClick={() => moveSelectedTo(moveTarget)} disabled={selected.size === 0}>
+                  Move
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setColumnManagerOpen((open) => !open)} aria-expanded={columnManagerOpen}>
+                  {columnManagerOpen ? "Close columns" : "Manage columns"}
+                </button>
+              </div>
+
+              {columnManagerOpen && (
+                <section className="blk-column-manager" aria-label="Manage output columns">
+                  <div>
+                    <strong>Output columns</strong>
+                    <p>Custom columns become output folders and are remembered for the next batch.</p>
+                  </div>
+                  <form onSubmit={handleAddColumn}>
+                    <label htmlFor="bulk-new-column">New column</label>
+                    <input id="bulk-new-column" value={newColumnName} onChange={(event) => setNewColumnName(event.target.value)} placeholder="e.g. Detail shots" maxLength={48} />
+                    <button className="btn btn-primary btn-sm" type="submit">Add</button>
+                  </form>
+                  <div className="blk-column-chip-list">
+                    {columns.filter((column) => column.key !== "duplicate").map((column) => (
+                      <span key={column.key} className="blk-column-chip">
+                        {column.title}
+                        {!DEFAULT_COLUMN_KEYS.has(column.key) && (
+                          <button onClick={() => removeCustomColumn(column.key)} aria-label={`Remove ${column.title}`}>×</button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </section>
               )}
 
               {/* Kanban board */}

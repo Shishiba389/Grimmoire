@@ -59,6 +59,13 @@ public sealed class BackendManager
             Directory.CreateDirectory(userDataDir);
             psi.Environment["GRIMOIRE_DATA"] = userDataDir;
             psi.Environment["GRIMOIRE_THUMB_CACHE"] = Path.Combine(userDataDir, "ImageCheckThumbs");
+            var appDir = Directory.GetParent(backendDir)?.FullName ?? backendDir;
+            var modelRoot = Path.Combine(appDir, "models");
+            psi.Environment["HF_HOME"] = Path.Combine(modelRoot, "huggingface");
+            psi.Environment["HF_HUB_CACHE"] = Path.Combine(modelRoot, "huggingface", "hub");
+            psi.Environment["HF_HUB_OFFLINE"] = "1";
+            psi.Environment["TRANSFORMERS_OFFLINE"] = "1";
+            psi.Environment["U2NET_HOME"] = Path.Combine(modelRoot, "rembg");
 
             _backendProcess = Process.Start(psi);
             if (_backendProcess == null)

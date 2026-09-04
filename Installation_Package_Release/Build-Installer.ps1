@@ -22,6 +22,10 @@ $ReleasesDir = Join-Path $PackageRoot "Releases"
 $ReleaseNotes = Join-Path $PackageRoot "release-notes.md"
 $BackendRuntimeRequirements = Join-Path $BackendDir "requirements-runtime.txt"
 $InnoScript = Join-Path $PackageRoot "Grimoire-Setup.iss"
+$VerifyScript = Join-Path $PackageRoot "Verify-Package.ps1"
+$PrerequisitesDir = Join-Path $PackageRoot "prerequisites"
+$WebView2Installer = Join-Path $PrerequisitesDir "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+$WebView2StandaloneUrl = "https://go.microsoft.com/fwlink/p/?LinkId=2124701"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     [xml]$projectXml = Get-Content $DesktopProject
@@ -43,16 +47,16 @@ if ($CleanBuild -and (Test-Path $BuildRoot)) {
 }
 
 if (-not $SkipNodeRestore) {
-    Write-Host "[1/7] Restoring frontend dependencies..."
+    Write-Host "[1/9] Restoring frontend dependencies..."
     Set-Location $FrontendDir
     npm.cmd ci
 }
 
-Write-Host "[2/7] Building frontend..."
+Write-Host "[2/9] Building frontend..."
 Set-Location $FrontendDir
 npm.cmd run build
 
-Write-Host "[3/7] Publishing desktop app..."
+Write-Host "[3/9] Publishing desktop app..."
 if (Test-Path $AppDir) {
     Remove-Item -LiteralPath $AppDir -Recurse -Force
 }
@@ -68,7 +72,7 @@ dotnet publish $DesktopProject `
     -p:DebugType=None `
     -p:DebugSymbols=false
 
-Write-Host "[4/7] Copying backend runtime files..."
+Write-Host "[4/9] Copying backend runtime files..."
 $BackendTarget = Join-Path $AppDir "backend"
 New-Item -ItemType Directory -Force -Path $BackendTarget | Out-Null
 
@@ -82,7 +86,7 @@ if ($robocopyExit -gt 7) {
     throw "robocopy failed with exit code $robocopyExit"
 }
 
-Write-Host "[5/7] Copying data files (taxonomy, reference examples)..."
+Write-Host "[5/9] Copying data files (taxonomy, reference examples)..."
 $DataTarget = Join-Path $AppDir "data"
 if (Test-Path $DataDir) {
     New-Item -ItemType Directory -Force -Path $DataTarget | Out-Null
@@ -97,7 +101,7 @@ if (Test-Path $DataDir) {
 }
 
 if (-not $SkipBackendRuntime) {
-    Write-Host "[6/7] Creating bundled Python runtime..."
+    Write-Host "[6/9] Creating clean bundled Python runtime..."
     $BasePython = Join-Path $env:LOCALAPPDATA "Programs\Python\Python311"
     if (-not (Test-Path (Join-Path $BasePython "python.exe"))) {
         $BasePython = (& py -3.11 -c "import sys; import pathlib; print(pathlib.Path(sys.executable).parent)").Trim()
@@ -112,8 +116,10 @@ if (-not $SkipBackendRuntime) {
     }
     New-Item -ItemType Directory -Force -Path $PythonTarget | Out-Null
 
+    $BaseSitePackages = Join-Path $BasePython "Lib\site-packages"
+    $BaseScripts = Join-Path $BasePython "Scripts"
     robocopy $BasePython $PythonTarget /E `
-        /XD "__pycache__" "Scripts\__pycache__" "Lib\__pycache__" `
+        /XD "__pycache__" $BaseSitePackages $BaseScripts `
         /XF "*.pyc" "*.pyo" | Out-Null
 
     $pythonCopyExit = $LASTEXITCODE
@@ -122,27 +128,99 @@ if (-not $SkipBackendRuntime) {
     }
 
     $BackendPython = Join-Path $PythonTarget "python.exe"
+    Remove-Item -LiteralPath (Join-Path $PythonTarget "Lib\site-packages") -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $PythonTarget "Scripts") -Recurse -Force -ErrorAction SilentlyContinue
+
+    & $BackendPython -m ensurepip --upgrade
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not bootstrap pip in the bundled Python runtime."
+    }
     & $BackendPython -m pip install --upgrade pip
-    & $BackendPython -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    & $BackendPython -m pip install `
+        "torch==2.12.1+cpu" "torchvision==0.27.1+cpu" `
+        --index-url https://download.pytorch.org/whl/cpu
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install the pinned CPU Torch runtime."
+    }
     & $BackendPython -m pip install -r $BackendRuntimeRequirements
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install backend runtime requirements."
+    }
 
     Write-Host "      Removing unnecessary packages from bundled runtime..."
-    & $BackendPython -m pip uninstall PySide6 PySide6-Essentials PySide6-Addons shiboken6 -y 2>&1 | Out-Null
-    & $BackendPython -m pip uninstall botocore boto3 s3transfer awscli -y 2>&1 | Out-Null
-
-    Write-Host "      Installing backend Node dependencies..."
-    Push-Location $BackendTarget
-    npm.cmd ci --omit=dev
-    Pop-Location
-
-    $NodeExe = Join-Path $env:ProgramFiles "nodejs\node.exe"
-    if (Test-Path $NodeExe) {
-        $NodeTarget = Join-Path $BackendTarget "node"
-        New-Item -ItemType Directory -Force -Path $NodeTarget | Out-Null
-        Copy-Item -LiteralPath $NodeExe -Destination (Join-Path $NodeTarget "node.exe") -Force
-    } else {
-        Write-Host "      [WARN] node.exe was not found under Program Files. Runtime will use node from PATH."
+    $unwantedPackages = @(
+        "PySide6",
+        "PySide6-Essentials",
+        "PySide6-Addons",
+        "shiboken6",
+        "botocore",
+        "boto3",
+        "s3transfer",
+        "awscli"
+    )
+    $installedPackages = @(
+        & $BackendPython -m pip list --format=json --disable-pip-version-check |
+            ConvertFrom-Json |
+            ForEach-Object { $_.name.ToLowerInvariant() }
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect bundled Python packages."
     }
+
+    $packagesToRemove = @(
+        $unwantedPackages |
+            Where-Object { $installedPackages -contains $_.ToLowerInvariant() }
+    )
+    if ($packagesToRemove.Count -gt 0) {
+        $pipUninstallArgs = @("-m", "pip", "uninstall") + $packagesToRemove + @("-y")
+        & $BackendPython @pipUninstallArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to remove unnecessary bundled Python packages."
+        }
+    } else {
+        Write-Host "      No unnecessary Python packages are installed."
+    }
+
+    Write-Host "[7/9] Downloading the offline CLIP model and WebView2 runtime..."
+    $ModelRoot = Join-Path $AppDir "models"
+    $HfHome = Join-Path $ModelRoot "huggingface"
+    $HfHubCache = Join-Path $HfHome "hub"
+    New-Item -ItemType Directory -Force -Path $HfHubCache, $PrerequisitesDir | Out-Null
+
+    $env:HF_HOME = $HfHome
+    $env:HF_HUB_CACHE = $HfHubCache
+    $downloadModelsCode = @'
+import os
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id="timm/vit_base_patch32_clip_224.openai",
+    cache_dir=os.environ["HF_HUB_CACHE"],
+    allow_patterns=[
+        "*.safetensors",
+        "*.json",
+        "*.txt",
+        "README.md",
+        ".gitattributes",
+    ],
+)
+'@
+    $downloadModelsCode | & $BackendPython -
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to download the offline CLIP model assets."
+    }
+
+    if (-not (Test-Path $WebView2Installer)) {
+        Invoke-WebRequest `
+            -Uri $WebView2StandaloneUrl `
+            -OutFile $WebView2Installer `
+            -UseBasicParsing
+    }
+    if ((Get-Item $WebView2Installer).Length -lt 100MB) {
+        throw "Downloaded WebView2 standalone installer looks incomplete."
+    }
+} else {
+    Write-Host "[6/9] Backend runtime creation skipped."
 }
 
 if (-not (Test-Path $ReleaseNotes)) {
@@ -154,7 +232,16 @@ if (-not (Test-Path $ReleaseNotes)) {
 "@ | Set-Content -Path $ReleaseNotes -Encoding UTF8
 }
 
-Write-Host "[7/7] Compiling Inno Setup installer..."
+Write-Host "[8/9] Verifying the packaged application offline..."
+if (-not (Test-Path $VerifyScript)) {
+    throw "Package verification script not found at $VerifyScript"
+}
+& $VerifyScript -AppDir $AppDir
+if ($LASTEXITCODE -ne 0) {
+    throw "Package verification failed."
+}
+
+Write-Host "[9/9] Compiling Inno Setup installer..."
 Set-Location $PackageRoot
 New-Item -ItemType Directory -Force -Path $ReleasesDir | Out-Null
 
@@ -183,6 +270,7 @@ if (-not (Test-Path $InnoScript)) {
     "/DMyAppDir=$AppDir" `
     "/DMyOutputDir=$ReleasesDir" `
     "/DMyIconPath=$IconPath" `
+    "/DMyWebView2Installer=$WebView2Installer" `
     $InnoScript
 
 if ($LASTEXITCODE -ne 0) {

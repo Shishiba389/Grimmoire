@@ -70,7 +70,12 @@ def resolve_final_category(
         cs = clip_scores.get(cat, 0.0)
         rs = reference_scores.get(cat, 0.0)
         ra = rule_adjusted.get(cat, 0.0)
-        final_scores[cat] = clip_weight * cs + reference_weight * rs + rule_weight * ra
+        has_ref = cat in reference_scores and rs > 0
+        if has_ref:
+            final_scores[cat] = clip_weight * cs + reference_weight * rs + rule_weight * ra
+        else:
+            w_total = clip_weight + rule_weight
+            final_scores[cat] = (clip_weight / w_total) * cs + (rule_weight / w_total) * ra
 
     for override in rule_overrides:
         if override == "rule:video_extension":

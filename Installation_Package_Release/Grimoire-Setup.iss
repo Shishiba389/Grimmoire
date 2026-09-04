@@ -3,13 +3,13 @@
 ; Generates a full installation wizard with:
 ;   - Welcome page
 ;   - Select install location
-;   - Component selection (Core, CLIP AI, Reference Examples)
+;   - Full offline runtime (Python, Node, CLIP, models, WebView2)
 ;   - Deep scan for old Grimoire remnants
 ;   - Install + Finish
 ; ============================================================================
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.1"
+  #define MyAppVersion "2.1.0"
 #endif
 #ifndef MyAppDir
   #define MyAppDir "..\build\app"
@@ -19,6 +19,9 @@
 #endif
 #ifndef MyIconPath
   #define MyIconPath "..\desktop\grimoire.ico"
+#endif
+#ifndef MyWebView2Installer
+  #define MyWebView2Installer "prerequisites\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 #endif
 
 #define MyAppName "GRIMOIRE"
@@ -41,12 +44,15 @@ OutputDir={#MyOutputDir}
 OutputBaseFilename=Grimoire-{#MyAppVersion}-Setup
 SetupIconFile={#MyIconPath}
 UninstallDisplayIcon={app}\{#MyAppExeName}
-Compression=lzma2/normal
-SolidCompression=yes
+Compression=lzma2/fast
+SolidCompression=no
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 DisableProgramGroupPage=yes
+CloseApplications=yes
+CloseApplicationsFilter=Grimoire.exe
+RestartApplications=no
 VersionInfoVersion={#MyAppVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
@@ -54,30 +60,15 @@ VersionInfoProductName={#MyAppName}
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Types]
-Name: "full"; Description: "Full installation (recommended)"
-Name: "compact"; Description: "Compact installation (no CLIP AI)"
-Name: "custom"; Description: "Custom installation"; Flags: iscustom
-
-[Components]
-Name: "core"; Description: "GRIMOIRE Core Application"; Types: full compact custom; Flags: fixed
-Name: "clip"; Description: "CLIP AI Image Classifier (taxonomy + reference examples)"; Types: full custom
-Name: "clip\taxonomy"; Description: "Classification taxonomy (Excel prompts)"; Types: full custom
-Name: "clip\references"; Description: "Reference example images (~265 files)"; Types: full custom
-
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
-Name: "cleanold"; Description: "Remove previous Grimoire installations found on this machine"; GroupDescription: "Cleanup:"; Flags: unchecked
+Name: "resetuserdata"; Description: "Also delete GRIMOIRE user data, caches, corrections, and saved state"; GroupDescription: "Optional reset:"; Flags: unchecked
 
 [Files]
-; Core application (everything except data/)
-Source: "{#MyAppDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "data\taxonomy\*;data\reference_examples\*"; Components: core
-
-; CLIP taxonomy data
-Source: "{#MyAppDir}\data\taxonomy\*"; DestDir: "{app}\data\taxonomy"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: clip\taxonomy
-
-; CLIP reference examples
-Source: "{#MyAppDir}\data\reference_examples\*"; DestDir: "{app}\data\reference_examples"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: clip\references
+; Full offline application, runtimes, taxonomy, reference bank, and AI models
+Source: "{#MyAppDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Offline Evergreen WebView2 Runtime installer
+Source: "{#MyWebView2Installer}"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -85,6 +76,7 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft Edge WebView2 Runtime..."; Flags: waituntilterminated runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
@@ -130,18 +122,13 @@ begin
         Paths.Add(InstallPath);
   end;
 
-  { Check common Velopack install locations }
-  InstallPath := ExpandConstant('{localappdata}\Grimoire');
-  if DirExists(InstallPath) then
+  { Check common legacy application locations, but never generic user-data folders. }
+  InstallPath := ExpandConstant('{localappdata}\Programs\Grimoire');
+  if DirExists(InstallPath) and FileExists(AddBackslash(InstallPath) + 'Grimoire.exe') then
     Paths.Add(InstallPath);
 
   InstallPath := ExpandConstant('{localappdata}\SquirrelTemp\Grimoire');
-  if DirExists(InstallPath) then
-    Paths.Add(InstallPath);
-
-  { Check %APPDATA%\Grimoire user data }
-  InstallPath := ExpandConstant('{userappdata}\Grimoire');
-  if DirExists(InstallPath) then
+  if DirExists(InstallPath) and FileExists(AddBackslash(InstallPath) + 'Grimoire.exe') then
     Paths.Add(InstallPath);
 
   Result := Paths;
@@ -211,7 +198,18 @@ end;
 procedure PerformCleanup;
 var
   I: Integer;
+  ResultCode: Integer;
 begin
+  { Ensure no old backend or desktop process keeps files locked. }
+  Exec(
+    ExpandConstant('{cmd}'),
+    '/C taskkill /F /T /IM Grimoire.exe >nul 2>&1',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  );
+
   for I := 0 to CleanupListBox.Items.Count - 1 do
   begin
     if CleanupListBox.Checked[I] then
@@ -219,6 +217,20 @@ begin
       Log('Removing old Grimoire folder: ' + CleanupListBox.Items[I]);
       RemoveDirRecursive(CleanupListBox.Items[I]);
     end;
+  end;
+
+  { Always replace the selected application directory from a clean slate. }
+  if DirExists(ExpandConstant('{app}')) then
+  begin
+    Log('Cleaning current GRIMOIRE application folder: ' + ExpandConstant('{app}'));
+    RemoveDirRecursive(ExpandConstant('{app}'));
+  end;
+
+  if WizardIsTaskSelected('resetuserdata') then
+  begin
+    Log('Resetting GRIMOIRE user data by explicit user request.');
+    RemoveDirRecursive(ExpandConstant('{localappdata}\Grimoire'));
+    RemoveDirRecursive(ExpandConstant('{userappdata}\Grimoire'));
   end;
 end;
 
@@ -235,22 +247,26 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  UserDataDir: String;
+  LocalUserDataDir: String;
+  RoamingUserDataDir: String;
   MsgResult: Integer;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    UserDataDir := ExpandConstant('{userappdata}\Grimoire');
-    if DirExists(UserDataDir) then
+    LocalUserDataDir := ExpandConstant('{localappdata}\Grimoire');
+    RoamingUserDataDir := ExpandConstant('{userappdata}\Grimoire');
+    if DirExists(LocalUserDataDir) or DirExists(RoamingUserDataDir) then
     begin
       MsgResult := MsgBox(
-        'User data folder found at:' + #13#10 +
-        UserDataDir + #13#10#13#10 +
+        'GRIMOIRE user data was found under your Windows profile.' + #13#10#13#10 +
         'This contains your correction history, embedding cache, and classifier data.' + #13#10 +
         'Do you want to remove it?',
         mbConfirmation, MB_YESNO);
       if MsgResult = IDYES then
-        DelTree(UserDataDir, True, True, True);
+      begin
+        DelTree(LocalUserDataDir, True, True, True);
+        DelTree(RoamingUserDataDir, True, True, True);
+      end;
     end;
   end;
 end;

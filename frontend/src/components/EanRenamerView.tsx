@@ -34,7 +34,9 @@ function createDuplicateGroup(imageIds: string[] = [], first = false): Duplicate
 }
 
 function normalizeNamingMode(mode: NamingMode): string {
-  return mode === "per-category" ? "per_category" : mode;
+  if (mode === "per-category") return "per_category";
+  if (mode === "custom-name") return "custom_name";
+  return mode;
 }
 
 function normalizeOutputMode(mode: OutputMode): string {
@@ -45,6 +47,8 @@ function normalizeOutputMode(mode: OutputMode): string {
 
 export function EanRenamerView() {
   const { notify } = useNotifications();
+
+  /* state: source mode */
 
   /* state: folder + images */
   const [folderPath, setFolderPath] = useState("");
@@ -2051,27 +2055,6 @@ const CSS = `
 
 .ren-card:hover .ren-card-grip {
   opacity: 1;
-}
-
-.ren-add-col {
-  min-width: 44px;
-  width: 44px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border: 1px dashed var(--border-light);
-  border-radius: var(--radius);
-  color: var(--text-muted);
-  font-size: 22px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.ren-add-col:hover {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .ren-bulk {

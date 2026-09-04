@@ -26,6 +26,7 @@ diagnostics/
 .vscode/
 .idea/
 .claude/launch.json
+.firecrawl/
 
 # Installer/release artifacts
 Installation_Package_Release/build/

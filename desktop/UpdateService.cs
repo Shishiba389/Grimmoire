@@ -135,6 +135,12 @@ public static class UpdateService
             )
             echo Applying update...
             xcopy /s /y /q "{patchDir}\*" "{appDir}\"
+            if exist "{patchDir}\.grimoire-delete.txt" (
+                for /f "usebackq delims=" %%F in ("{patchDir}\.grimoire-delete.txt") do (
+                    del /f /q "{appDir}\%%F" 2>nul
+                )
+            )
+            del /q "{appDir}\.grimoire-delete.txt" 2>nul
             echo Cleaning up...
             rd /s /q "{patchDir}" 2>nul
             del /q "{zipFile}" 2>nul

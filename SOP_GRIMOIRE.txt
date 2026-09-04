@@ -92,8 +92,6 @@ Backend:
 - import main OK.
 - /health OK.
 - /api/ean-renamer/health OK.
-- /api/ean-sorter/health OK.
-- /api/packshot-browser/health OK.
 
 Frontend:
 - npm build OK.
@@ -111,13 +109,6 @@ EAN Renamer:
 - Prefixed duplicate 1st dung chung number cho file khac extension.
 - Product Name khong override Prefix neu checkbox EAN_ProductName khong tick.
 - Product Name continuous chay dung khi checkbox EAN_ProductName duoc tick.
-
-Packshot Browser:
-- Scan folder anh OK.
-- Thumbnail/meta endpoint OK voi it nhat 1 anh.
-- Copy selected tao file output va packshot_browser_report.csv.
-- Cloud-only file duoc thu Windows cached thumbnail bang /shell-thumb, sau do SharePoint online thumbnail bang /online-thumb neu co token.
-- /thumb va /file voi cloud-only phai bi chan; chi Copy selected moi doc file va trigger OneDrive download.
 
 
 6. Lenh verify khuyen nghi
@@ -139,8 +130,6 @@ Health check:
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod http://127.0.0.1:7788/health"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod http://127.0.0.1:7788/api/ean-renamer/health"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod http://127.0.0.1:7788/api/ean-sorter/health"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-RestMethod http://127.0.0.1:7788/api/packshot-browser/health"
 
 
 7. SOP xu ly loi user
@@ -149,9 +138,8 @@ Buoc 1: Hoi user dang dung workflow nao:
 - Data QC
 - Image Edit
 - Images Check
-- Packshot Browser
-- EAN Sorter
 - EAN Renamer
+- Bulk Working
 - Desktop launch/setup
 
 Buoc 2: Yeu cau user chay:

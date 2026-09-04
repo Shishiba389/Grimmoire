@@ -6,8 +6,8 @@ export type RenImage = {
   id: string;
   name: string;
   extension: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   sizeBytes: number;
   ean: string;
   relativePath: string;
@@ -25,6 +25,7 @@ export type BulkFolderItem = {
   relativePath: string;
   name: string;
   imageCount: number;
+  documentCount: number;
   imageIds: string[];
   images: RenImage[];
   sampleImages: RenImage[];
@@ -110,7 +111,7 @@ export type DuplicateGroup = {
 };
 export type DuplicateBuckets = Record<string, DuplicateGroup[]>;
 export type DuplicateLabels = Record<string, string>;
-export type NamingMode = "per-category" | "continuous" | "prefixed";
+export type NamingMode = "per-category" | "continuous" | "prefixed" | "custom-name";
 export type OutputMode = "copy" | "in-folder";
 
 export type RenamePlanItem = {

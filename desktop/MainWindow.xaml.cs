@@ -1,5 +1,7 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
@@ -11,12 +13,32 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _backendWatchdog;
     private bool _backendCheckInProgress;
 
+    [DllImport("dwmapi.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    private static extern void DwmSetWindowAttribute(
+        IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
+
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_ROUND = 2;
+
     public MainWindow()
     {
         InitializeComponent();
         _backend.Log += OnBackendLog;
         _backendWatchdog = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _backendWatchdog.Tick += BackendWatchdog_Tick;
+        SourceInitialized += (_, _) => ApplyRoundedCorners();
+    }
+
+    private void ApplyRoundedCorners()
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            var preference = DWMWCP_ROUND;
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                ref preference, sizeof(int));
+        }
+        catch { }
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -35,7 +57,8 @@ public partial class MainWindow : Window
             UpdateStatus("Backend failed to start. Check logs.");
             MessageBox.Show(
                 "Failed to start the GRIMOIRE backend.\n\n" +
-                "Run SETUP_GRIMOIRE.bat from the GRIMOIRE folder, then start the desktop app again.",
+                "Please reinstall GRIMOIRE using the full installer. " +
+                "If the problem continues, contact support with the installer version.",
                 "GRIMOIRE - Startup Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -230,6 +253,18 @@ public partial class MainWindow : Window
             // ── Native bridge for desktop features ──
             window.__grimoire = {
                 isDesktop: true,
+                windowMinimize: function() {
+                    window.chrome.webview.postMessage(JSON.stringify({ type: 'windowMinimize' }));
+                },
+                windowMaximize: function() {
+                    window.chrome.webview.postMessage(JSON.stringify({ type: 'windowMaximize' }));
+                },
+                windowClose: function() {
+                    window.chrome.webview.postMessage(JSON.stringify({ type: 'windowClose' }));
+                },
+                windowDragStart: function() {
+                    window.chrome.webview.postMessage(JSON.stringify({ type: 'windowDragStart' }));
+                },
                 pickFolder: function(title, initialDir) {
                     return new Promise(function(resolve) {
                         const id = 'pick_' + Date.now();
@@ -323,6 +358,32 @@ public partial class MainWindow : Window
                     break;
                 case "reveal":
                     HandleReveal(root);
+                    break;
+                case "windowMinimize":
+                    Dispatcher.Invoke(() => WindowState = WindowState.Minimized);
+                    break;
+                case "windowMaximize":
+                    Dispatcher.Invoke(() =>
+                        WindowState = WindowState == WindowState.Maximized
+                            ? WindowState.Normal
+                            : WindowState.Maximized);
+                    break;
+                case "windowClose":
+                    Dispatcher.Invoke(Close);
+                    break;
+                case "windowDragStart":
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (WindowState == WindowState.Maximized)
+                        {
+                            var point = System.Windows.Input.Mouse.GetPosition(this);
+                            var pctX = point.X / ActualWidth;
+                            WindowState = WindowState.Normal;
+                            Left = point.X - (Width * pctX);
+                            Top = 0;
+                        }
+                        DragMove();
+                    });
                     break;
             }
         }
@@ -433,6 +494,27 @@ public partial class MainWindow : Window
 
     private void Window_StateChanged(object sender, EventArgs e)
     {
+        if (WindowState == WindowState.Maximized)
+        {
+            var workArea = SystemParameters.WorkArea;
+            MaxWidth = workArea.Width + 14;
+            MaxHeight = workArea.Height + 14;
+        }
+        else
+        {
+            MaxWidth = double.PositiveInfinity;
+            MaxHeight = double.PositiveInfinity;
+        }
+        PushWindowState();
+    }
+
+    private void PushWindowState()
+    {
+        if (WebView?.CoreWebView2 == null) return;
+        var isMax = WindowState == WindowState.Maximized ? "true" : "false";
+        WebView.CoreWebView2.ExecuteScriptAsync(
+            $"document.documentElement.dataset.windowMaximized = '{isMax}';" +
+            $"window.dispatchEvent(new CustomEvent('grimoire:window-state', {{ detail: {{ maximized: {isMax} }} }}));");
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)

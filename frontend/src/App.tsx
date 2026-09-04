@@ -16,10 +16,7 @@ import Settings from "./components/Settings";
 import {
   DataQcView as RealDataQcView,
   EanRenamerView as RealEanRenamerView,
-  EanSorterView as RealEanSorterView,
   ImagesCheckView as RealImagesCheckView,
-  PackshotBrowserView as RealPackshotBrowserView,
-  ImageEditView as RealImageEditView,
   BulkWorkingView as RealBulkWorkingView,
 } from "./components/ToolViews";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -47,16 +44,6 @@ function IconDataQC() {
   );
 }
 
-function IconImageEdit() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <circle cx="8.5" cy="8.5" r="1.5" />
-      <path d="M21 15l-5-5L5 21" />
-    </svg>
-  );
-}
-
 function IconImagesCheck() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -65,32 +52,6 @@ function IconImagesCheck() {
       <circle cx="8" cy="8" r="1" />
       <path d="M17 7l3 3" />
       <path d="M20 7l-3 3" />
-    </svg>
-  );
-}
-
-function IconPackshotBrowser() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M7 8h10" />
-      <path d="M7 12h4" />
-      <path d="M14 12l3 3" />
-      <path d="M17 12l-3 3" />
-      <circle cx="9" cy="16" r="1" />
-    </svg>
-  );
-}
-
-function IconEANSorter() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="2" height="16" />
-      <rect x="6" y="4" width="1.5" height="16" />
-      <rect x="10" y="4" width="2.5" height="16" />
-      <rect x="14" y="4" width="1" height="16" />
-      <rect x="17" y="4" width="2" height="16" />
-      <rect x="21" y="4" width="1" height="16" />
     </svg>
   );
 }
@@ -164,24 +125,6 @@ function IconBell() {
   );
 }
 
-function IconFolder() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-    </svg>
-  );
-}
-
-function IconUpload() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
-
 function IconArrowRight() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -244,14 +187,11 @@ function GrimoireLogo() {
 const SHORTCUTS: Record<string, string> = {
   "/": "1",
   "/data-qc": "2",
-  "/image-edit": "3",
   "/images-check": "4",
-  "/packshot-browser": "5",
-  "/ean-sorter": "6",
-  "/ean-renamer": "7",
-  "/bulk-working": "8",
-  "/guide": "9",
-  "/credits": "0",
+  "/ean-renamer": "5",
+  "/bulk-working": "6",
+  "/guide": "7",
+  "/credits": "8",
 };
 
 /* â”€â”€â”€ Sidebar â”€â”€â”€ */
@@ -259,10 +199,7 @@ const SHORTCUTS: Record<string, string> = {
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: IconDashboard, img: null, mono: false },
   { to: "/data-qc", label: "Data QC", icon: IconDataQC, img: "/icons/data-qc.png", mono: false },
-  { to: "/image-edit", label: "Image Edit", icon: IconImageEdit, img: "/icons/image-edit.png", mono: false },
   { to: "/images-check", label: "Images Check", icon: IconImagesCheck, img: null, mono: false },
-  { to: "/packshot-browser", label: "Packshot Browser", icon: IconPackshotBrowser, img: "/icons/ean-sorter-gallery.png", mono: false },
-  { to: "/ean-sorter", label: "EAN Sorter", icon: IconEANSorter, img: "/icons/ean-sorter.png", mono: true },
   { to: "/ean-renamer", label: "EAN Renamer", icon: IconEANRenamer, img: "/icons/ean-renamer.png", mono: false },
   { to: "/bulk-working", label: "Bulk Working", icon: IconBulkWorking, img: null, mono: false },
   { to: "/guide", label: "Guide", icon: IconGuide, img: null, mono: false },
@@ -314,6 +251,7 @@ function Sidebar({
         <button
           className="sidebar-link sidebar-link-btn"
           onClick={onOpenSettings}
+          aria-label="Settings"
           title={collapsed ? "Settings" : undefined}
         >
           <IconSettings />
@@ -322,6 +260,7 @@ function Sidebar({
         <button
           className="sidebar-link sidebar-link-btn"
           onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <IconCollapse />
@@ -337,10 +276,7 @@ function Sidebar({
 const ROUTE_NAMES: Record<string, string> = {
   "/": "Dashboard",
   "/data-qc": "Data Quality Control",
-  "/image-edit": "Image Edit",
   "/images-check": "Images Check",
-  "/packshot-browser": "Packshot Browser",
-  "/ean-sorter": "EAN Sorter",
   "/ean-renamer": "EAN Renamer",
   "/bulk-working": "Bulk Working",
   "/guide": "Guide",
@@ -381,13 +317,20 @@ function NotificationPanel({
 
   useEffect(() => {
     if (!open) return;
-    const handle = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -455,15 +398,12 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2026.06.24.2";
+const APP_VERSION = "2.1.0";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },
   { to: "/data-qc", title: "Data QC", desc: "Audit master data and generate reports", keywords: ["data", "qc", "audit", "master", "report", "quality"] },
-  { to: "/image-edit", title: "Image Edit", desc: "Batch resize, canvas, upscale, export", keywords: ["image", "edit", "upscale", "resize", "background", "canvas"] },
   { to: "/images-check", title: "Images Check", desc: "Scan folders and delete rejected images", keywords: ["images", "check", "delete", "clean", "review", "gallery", "slideshow"] },
-  { to: "/packshot-browser", title: "Packshot Browser", desc: "Browse synced packshot folders, hover preview, select, copy, and export reports", keywords: ["packshot", "browser", "finder", "preview", "hover", "onedrive", "copy", "ean"] },
-  { to: "/ean-sorter", title: "EAN Sorter", desc: "3-tier smart matching and auto-sort into EAN folders", keywords: ["ean", "sort", "sorter", "barcode", "folder", "status", "match", "master", "tier"] },
   { to: "/ean-renamer", title: "EAN Renamer", desc: "Rename or copy product images with master data matching", keywords: ["ean", "rename", "renamer", "copy", "packshot", "product name", "master", "match"] },
   { to: "/bulk-working", title: "Bulk Working", desc: "Process multiple EAN folders with kanban, CLIP, and batch renaming", keywords: ["bulk", "working", "batch", "kanban", "clip", "folder", "ean", "rename"] },
   { to: "/guide", title: "Guide", desc: "When to use each tab and how to handle common cases", keywords: ["guide", "help", "how", "workflow", "tab", "case", "huong dan"] },
@@ -473,9 +413,8 @@ const COMMANDS: CommandItem[] = [
 const GRIMOIRE_TIPS = [
   "Run Preview before any in-folder rename so conflicts are visible before files move.",
   "Images Check scans every subfolder, so point it at the highest product folder you trust.",
-  "Packshot Browser scans filenames first, then loads previews on demand so synced OneDrive folders stay responsive.",
   "Use EAN_ProductName in EAN Renamer only when the product name should control continuous numbering.",
-  "EAN Sorter writes EAN_report.xlsx in the scanned folder after sorting.",
+  "Use the folder filter in Bulk Working to return to an unfinished product quickly.",
   "Use Copy mode first when testing a new naming rule.",
   "The top search can jump to tools or reveal files in recent output folders.",
 ];
@@ -500,9 +439,7 @@ function recentSearchRoots() {
     }
   };
   add(localStorage.getItem("grimoire-ean-renamer-output-roots"));
-  add(localStorage.getItem("grimoire-ean-sorter-root"));
   add(localStorage.getItem("grimoire-images-check-root"));
-  add(localStorage.getItem("grimoire-packshot-browser-root"));
   return Array.from(roots);
 }
 
@@ -578,6 +515,7 @@ function TopSearch() {
           }
           if (e.key === "Escape") setFocused(false);
         }}
+        aria-label="Search features, tools, output files"
         placeholder="Search features, tools, output files..."
       />
       {showPanel && (
@@ -607,6 +545,53 @@ function TopSearch() {
   );
 }
 
+function WindowControls() {
+  const isDesktop = !!(window as any).__grimoire?.isDesktop;
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setMaximized(!!detail.maximized);
+    };
+    window.addEventListener("grimoire:window-state", handler);
+    return () => window.removeEventListener("grimoire:window-state", handler);
+  }, []);
+
+  if (!isDesktop) return null;
+
+  const g = (window as any).__grimoire;
+  return (
+    <div className="window-controls">
+      <button
+        className="wc-btn wc-close"
+        onClick={() => g.windowClose()}
+        title="Close"
+      >
+        <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+      </button>
+      <button
+        className="wc-btn wc-minimize"
+        onClick={() => g.windowMinimize()}
+        title="Minimize"
+      >
+        <svg viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+      </button>
+      <button
+        className="wc-btn wc-maximize"
+        onClick={() => g.windowMaximize()}
+        title={maximized ? "Restore" : "Maximize"}
+      >
+        {maximized ? (
+          <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
+        ) : (
+          <svg viewBox="0 0 12 12"><path d="M3 8V4.5a1.5 1.5 0 011.5-1.5H8" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><path d="M5 10h2.5a1.5 1.5 0 001.5-1.5V6" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function TopBar({ collapsed }: { collapsed: boolean }) {
   const { theme, toggle } = useTheme();
   const { unreadCount } = useNotifications();
@@ -623,10 +608,25 @@ function TopBar({ collapsed }: { collapsed: boolean }) {
     return () => clearInterval(id);
   }, []);
 
+  const handleDragStart = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, input, a, .command-results, .notif-panel, .window-controls")) return;
+    e.preventDefault();
+    const g = (window as any).__grimoire;
+    if (g?.windowDragStart) g.windowDragStart();
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, input, a, .command-results, .notif-panel, .window-controls")) return;
+    const g = (window as any).__grimoire;
+    if (g?.windowMaximize) g.windowMaximize();
+  };
+
   return (
     <header
       className="topbar"
       style={{ left: collapsed ? "var(--sidebar-collapsed)" : "var(--sidebar-width)" }}
+      onMouseDown={handleDragStart}
+      onDoubleClick={handleDoubleClick}
     >
       <Breadcrumb />
       <TopSearch />
@@ -648,6 +648,7 @@ function TopBar({ collapsed }: { collapsed: boolean }) {
         <div style={{ position: "relative" }}>
           <button
             className="topbar-btn"
+            aria-label="Notifications"
             onClick={() => setNotifOpen(!notifOpen)}
           >
             <IconBell />
@@ -664,6 +665,7 @@ function TopBar({ collapsed }: { collapsed: boolean }) {
           <img src="/icons/tray.png" alt="" className="topbar-avatar-img" />
           <span className="topbar-username">GRIMOIRE</span>
         </div>
+        <WindowControls />
       </div>
     </header>
   );
@@ -682,33 +684,6 @@ const FEATURES = [
     gradient: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
   },
   {
-    to: "/image-edit",
-    title: "Image Edit",
-    desc: "AI background removal, upscaling, batch canvas editing",
-    icon: IconImageEdit,
-    img: "/icons/image-edit.png",
-    mono: false,
-    gradient: "linear-gradient(135deg, #0891b2 0%, #0e7490 100%)",
-  },
-  {
-    to: "/packshot-browser",
-    title: "Packshot Browser",
-    desc: "Browse synced packshot folders, hover preview images, select files, and copy them to output",
-    icon: IconPackshotBrowser,
-    img: "/icons/ean-sorter-gallery.png",
-    mono: false,
-    gradient: "linear-gradient(135deg, #0f766e 0%, #2563eb 100%)",
-  },
-  {
-    to: "/ean-sorter",
-    title: "EAN Sorter",
-    desc: "3-tier smart matching (EAN, article code, product name) with deep scan and auto-sort",
-    icon: IconEANSorter,
-    img: "/icons/ean-sorter.png",
-    mono: true,
-    gradient: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-  },
-  {
     to: "/ean-renamer",
     title: "EAN Renamer",
     desc: "Drag-and-drop image renaming with master data matching and bulk folder mode",
@@ -720,20 +695,6 @@ const FEATURES = [
 ];
 
 const QUICK_ACTIONS = [
-  {
-    to: "/ean-sorter",
-    title: "Scan Folder",
-    desc: "Quick-scan a folder for EAN barcodes",
-    icon: IconFolder,
-    bg: "#059669",
-  },
-  {
-    to: "/image-edit",
-    title: "Batch Process",
-    desc: "Upload images for bulk editing",
-    icon: IconUpload,
-    bg: "#0891b2",
-  },
   {
     to: "/data-qc",
     title: "Run Audit",
@@ -754,22 +715,13 @@ const BANNERS = [
     btn: "Open Data QC",
   },
   {
-    gradient: "linear-gradient(135deg, #0c4a6e 0%, #0369a1 35%, #0ea5e9 100%)",
-    accentColor: "#7dd3fc",
-    svgPattern: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs><pattern id="circuit" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M0 20h15l5-5 5 5h15" fill="none" stroke="rgba(125,211,252,0.1)" stroke-width="1"/><path d="M20 0v15l5 5-5 5v15" fill="none" stroke="rgba(125,211,252,0.1)" stroke-width="1"/><circle cx="20" cy="20" r="2" fill="rgba(125,211,252,0.12)"/></pattern></defs><rect width="100%" height="100%" fill="url(#circuit)"/><circle cx="80%" cy="30%" r="100" fill="rgba(14,165,233,0.1)"/><circle cx="25%" cy="75%" r="70" fill="rgba(56,189,248,0.06)"/></svg>`,
-    to: "/image-edit",
-    title: "Image Edit",
-    desc: "AI-powered background removal, smart upscaling, batch canvas editing for product images.",
-    btn: "Open Image Edit",
-  },
-  {
     gradient: "linear-gradient(135deg, #052e16 0%, #065f46 35%, #059669 100%)",
     accentColor: "#6ee7b7",
     svgPattern: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><defs><pattern id="hex" x="0" y="0" width="56" height="48" patternUnits="userSpaceOnUse"><path d="M28 0l28 16v32l-28 16L0 48V16z" fill="none" stroke="rgba(110,231,183,0.08)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#hex)"/><circle cx="75%" cy="35%" r="110" fill="rgba(5,150,105,0.1)"/><circle cx="30%" cy="80%" r="60" fill="rgba(52,211,153,0.06)"/></svg>`,
-    to: "/ean-sorter",
-    title: "EAN Sorter",
-    desc: "3-tier smart matching with deep scan, auto-sort by EAN, article code, or product name.",
-    btn: "Open EAN Sorter",
+    to: "/ean-renamer",
+    title: "EAN Renamer (Quick)",
+    desc: "Rename and copy product images by EAN with master data matching.",
+    btn: "Open EAN Renamer",
   },
   {
     gradient: "linear-gradient(135deg, #451a03 0%, #92400e 35%, #d97706 100%)",
@@ -783,6 +735,22 @@ const BANNERS = [
 ];
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: "2026.07.01.0",
+    date: "2026-07-01",
+    title: "Frameless window and macOS-style UI",
+    type: "Desktop & UI",
+    changes: [
+      "Frameless window: removed Windows title bar for a unified, borderless app look.",
+      "macOS traffic-light window controls (close, minimize, maximize) integrated into the topbar.",
+      "Drag to move window from topbar, double-click to maximize/restore.",
+      "Rounded window corners via Windows 11 DWM API.",
+      "Vibrancy effect: sidebar and topbar use backdrop-filter blur for depth.",
+      "macOS-style auto-hiding scrollbars that appear only on hover.",
+      "Smoother transitions with spring curves, press feedback on all interactive elements.",
+      "Compact topbar (48px), rounded sidebar links, refined spacing throughout.",
+    ],
+  },
   {
     version: "2026.06.24.2",
     date: "2026-06-24",
@@ -1055,7 +1023,6 @@ const CHANGELOG_ENTRIES = [
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { notify } = useNotifications();
   const [bannerIdx, setBannerIdx] = useState(() => Math.floor(Math.random() * BANNERS.length));
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -1067,11 +1034,6 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
-    notify("Welcome to GRIMOIRE", {
-      type: "info",
-      message: "All systems operational",
-      browser: false,
-    });
     startTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1081,6 +1043,8 @@ function Dashboard() {
     startTimer();
   };
 
+  const pauseTimer = () => { if (timerRef.current) clearInterval(timerRef.current); };
+
   const banner = BANNERS[bannerIdx];
   const latest = CHANGELOG_ENTRIES[0];
 
@@ -1088,7 +1052,12 @@ function Dashboard() {
     <div className="view">
       {/* Banner Carousel + Latest Update */}
       <div className="hero changelog-hero">
-        <div className="hero-visual changelog-visual" style={{ position: "relative", overflow: "hidden" }}>
+        <div
+          className="hero-visual changelog-visual"
+          style={{ position: "relative", overflow: "hidden" }}
+          onMouseEnter={pauseTimer}
+          onMouseLeave={startTimer}
+        >
           {BANNERS.map((b, i) => (
             <div
               key={b.to}
@@ -1117,9 +1086,10 @@ function Dashboard() {
                 {banner.btn} <IconArrowRight />
               </button>
               <div style={{ display: "flex", gap: 6 }}>
-                {BANNERS.map((_, i) => (
+                {BANNERS.map((b2, i) => (
                   <button
                     key={i}
+                    aria-label={`Go to slide ${i + 1}: ${b2.title}`}
                     onClick={() => goToBanner(i)}
                     style={{
                       width: i === bannerIdx ? 24 : 8,
@@ -1231,11 +1201,9 @@ function Dashboard() {
 
 const GUIDE_OVERVIEW = [
   ["Data QC", "Audit master data files, find missing data, rule issues, duplicates, and export review reports."],
-  ["Image Edit", "Batch process product images: resize, canvas, background cleanup, upscale, naming, and export."],
   ["Images Check", "Review image folders visually, mark bad images, and delete only after confirmation."],
-  ["Packshot Browser", "Search synced packshot folders by EAN, filename, folder, or keyword, then copy selected files."],
-  ["EAN Sorter", "Deep scan images, match against master data using 3-tier matching (EAN, article code, product name), and sort into EAN folders."],
   ["EAN Renamer", "Copy or rename product images by EAN with master data matching, drag-and-drop categories, bulk folder mode, and naming rules."],
+  ["Bulk Working", "Process a folder queue with PDF-safe scanning, AI image classification, custom output columns, and preview-first batch output."],
 ];
 
 const GUIDE_TABS = [
@@ -1267,40 +1235,6 @@ const GUIDE_TABS = [
     ],
   },
   {
-    title: "Image Edit",
-    purpose: "Use Image Edit when images need batch processing for marketplace or catalog output.",
-    features: [
-      "Add individual image files or process an input folder.",
-      "Use built-in dimension presets or save custom dimension presets for later sessions.",
-      "Control width, height, aspect lock, fit mode, margins, DPI, canvas background, and layout preset.",
-      "Use image filters such as whitespace removal, product fill, safe padding, white background checks, shadow removal, and background removal.",
-      "Use standard upscale or Real-ESRGAN when local AI tools are available.",
-      "Choose output format, quality, max file size, naming rule, and local or ZIP output.",
-      "Keep recent previews and completed job outputs in the Outputs panel instead of replacing the previous result.",
-    ],
-    steps: [
-      "Open Image Edit.",
-      "Choose files with Add, or select an input folder.",
-      "Pick a dimension preset or enter Width and Height manually.",
-      "Click Save next to Dimension Preset if this size should be reused later.",
-      "Choose layout, canvas, upscale, filter, output, and naming settings.",
-      "Run Preview (First 1) to validate the output on one image.",
-      "Adjust settings if needed, then click Start Processing.",
-      "Use the Outputs panel to switch between recent previews and completed jobs, then download the selected job.",
-    ],
-    cases: [
-      "Use it to make all product images 1000 x 1000, 1500 x 1500, Amazon main image size, or a saved customer-specific preset.",
-      "Use it when images have too much whitespace around the product.",
-      "Use it when the same input batch must be exported as JPG, PNG, WEBP, or TIFF with consistent naming.",
-      "Use local folder output when the processed files should remain directly accessible in a folder; each run creates a separate timestamped output folder.",
-    ],
-    notes: [
-      "Large images and AI upscale can take more RAM and processing time.",
-      "Always preview before a large batch when changing canvas, background, or upscale settings.",
-      "Do not put the output folder inside the input folder.",
-    ],
-  },
-  {
     title: "Images Check",
     purpose: "Use Images Check when the task is visual review and cleanup of a folder tree.",
     features: [
@@ -1320,84 +1254,11 @@ const GUIDE_TABS = [
     ],
     cases: [
       "Use it when a packshot folder contains blurry, duplicated, wrong, or irrelevant images.",
-      "Use it before Image Edit if the batch should be cleaned first.",
-      "Use it after Image Edit if the output folder needs manual visual QA.",
+      "Use it before EAN Renamer or Bulk Working if the batch should be cleaned first.",
+      "Use it after a copy/rename batch if the output folder needs manual visual QA.",
     ],
     notes: [
       "Deletion is permanent after confirmation.",
-      "If you only need to find and copy good packshots, Packshot Browser is usually safer than deleting files.",
-    ],
-  },
-  {
-    title: "Packshot Browser",
-    purpose: "Use Packshot Browser when the task is finding, previewing, selecting, and copying existing packshot files.",
-    features: [
-      "Index local or synced folder structures without requiring an Excel file.",
-      "Browse the real folder tree first, then load only the selected folder gallery.",
-      "Search inside the selected folder by EAN, filename, folder, extension, and product keywords.",
-      "Load images page by page so very large libraries stay responsive.",
-      "Load thumbnails progressively through a limited queue instead of requesting everything at once.",
-      "Hover thumbnails for larger preview and file metadata.",
-      "Select files and copy them to an output folder.",
-      "Export a CSV report of copied or selected files.",
-      "Handle OneDrive cloud-only files carefully by using cached or SharePoint online thumbnails when possible.",
-    ],
-    steps: [
-      "Open Packshot Browser.",
-      "Choose the source packshot folder.",
-      "Click Scan to build the folder index.",
-      "Choose the folder to inspect from the left panel.",
-      "Use search inside the selected folder if needed.",
-      "Click Load more thumbnails when the folder has more results.",
-      "Hover a thumbnail to inspect it.",
-      "Select the files to collect.",
-      "Choose an output folder.",
-      "Click Copy selected and review the generated report.",
-    ],
-    cases: [
-      "Use it when someone asks for all packshots for one EAN or product group.",
-      "Use it to collect images from a OneDrive-synced library without accidentally downloading every file.",
-      "Use it when the source folder must stay unchanged.",
-    ],
-    notes: [
-      "Cloud-only OneDrive files may show placeholders if Windows has no cached thumbnail and SharePoint online preview is unavailable.",
-      "Copy selected may trigger OneDrive to download the original selected files.",
-      "Keep output outside the source folder.",
-    ],
-  },
-  {
-    title: "EAN Sorter",
-    purpose: "Use EAN Sorter when images need to be matched against product master data and sorted into EAN folders.",
-    features: [
-      "Deep scan recursively finds all images across subfolders with stats and loose image detection.",
-      "Upload master data (Excel with EAN, article code, or product name columns) for 3-tier matching.",
-      "Tier 1: EAN checksum detection from filenames (confidence 1.0).",
-      "Tier 2: Article code token matching against master data (confidence 0.8).",
-      "Tier 3: Product name fuzzy matching using sequence similarity (threshold 0.6, confidence up to 0.7).",
-      "Resolve ambiguous matches via dropdown before sorting.",
-      "Auto-sort creates EAN folders and moves matched images with a detailed Excel report.",
-      "Categorize view creates product folders organized by status with EAN subfolders.",
-    ],
-    steps: [
-      "Open EAN Sorter.",
-      "Choose the source folder.",
-      "Upload master data (Excel with EAN / article code / product name columns).",
-      "Click Deep Scan to find all images recursively.",
-      "Collect loose images if any are found outside subfolders.",
-      "Click Match to run 3-tier matching against master data.",
-      "Resolve any ambiguous matches by selecting the correct EAN from dropdowns.",
-      "Click Sort to create EAN folders and move images.",
-      "Open Review to see the report, export to Excel, or reveal in Explorer.",
-    ],
-    cases: [
-      "Use it when images arrive unsorted and folder names must be based on EAN.",
-      "Use it when filenames contain article codes or product names instead of barcodes.",
-      "Use it to separate matched and unmatched files for manual follow-up.",
-    ],
-    notes: [
-      "Master data quality directly affects matching accuracy — ensure EAN and article code columns are clean.",
-      "Tier 3 fuzzy matching may produce false positives — always review ambiguous results before sorting.",
-      "Review results before applying folder changes.",
     ],
   },
   {
@@ -1434,6 +1295,35 @@ const GUIDE_TABS = [
       "Filename conflicts must be fixed before apply.",
       "Undo depends on the operation log and may not work if files are manually moved or deleted after applying.",
       "Preview is the most important step in this tab.",
+    ],
+  },
+  {
+    title: "Bulk Working",
+    purpose: "Use Bulk Working to process a queue of EAN folders without loading every file or forcing a long horizontal drag board.",
+    features: [
+      "Scans each folder as a lightweight summary, including PDF counts and representative previews.",
+      "Loads full file details only when a folder is opened, keeping large queues responsive.",
+      "Keeps PDFs in the workflow and places them in Artwork for manual review; CLIP only classifies supported visual media.",
+      "Filters the queue by folder, EAN, product name, or status.",
+      "Moves selected files with a direct control as well as drag and drop.",
+      "Adds persistent custom output columns that behave like EAN Renamer output categories.",
+    ],
+    steps: [
+      "Choose the root folder, then optionally load master data or an existing mapping file.",
+      "Use the queue filter to find the next pending folder and open it.",
+      "Review AI suggestions and PDFs, then move selected files into the required output column.",
+      "Set output folders, Preview the result, and resolve any conflicts.",
+      "Copy or rename only after the preview is correct; then mark the folder Done or open Next.",
+    ],
+    cases: [
+      "Use it for many product folders that share the same naming and output workflow.",
+      "Use a custom column when a customer requires an additional media category such as Detail shots.",
+      "Use the direct Move control when working on a touchpad or keyboard rather than dragging.",
+    ],
+    notes: [
+      "A PDF is counted and retained, but it is not sent to CLIP classification.",
+      "Custom columns are stored locally on the workstation and their output folders can be configured per active folder.",
+      "Preview remains the safety gate before files are copied or renamed.",
     ],
   },
   {
@@ -1595,6 +1485,54 @@ function CommandHome() {
     </div>
   );
 }
+/* â”€â”€â”€ Keep-alive tool views (fix: switching tabs must not wipe in-progress work) â”€â”€â”€ */
+/* React Router unmounts the previous route's element on navigation, which destroys the
+   local useState in each tool view. These views are rendered once on first visit and kept
+   mounted forever after, only hidden via CSS, so folder/queue/selection state survives tab switches. */
+const KEEP_ALIVE_VIEWS: Array<{ path: string; render: () => React.ReactNode }> = [
+  { path: "/data-qc", render: () => <RealDataQcView /> },
+  { path: "/images-check", render: () => <RealImagesCheckView /> },
+  {
+    path: "/ean-renamer",
+    render: () => (
+      <ErrorBoundary fallbackLabel="EAN Renamer encountered an error">
+        <RealEanRenamerView />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    path: "/bulk-working",
+    render: () => (
+      <ErrorBoundary fallbackLabel="Bulk Working encountered an error">
+        <RealBulkWorkingView />
+      </ErrorBoundary>
+    ),
+  },
+];
+
+function KeepAliveViews() {
+  const location = useLocation();
+  const [visited, setVisited] = useState<string[]>(() =>
+    KEEP_ALIVE_VIEWS.some((v) => v.path === location.pathname) ? [location.pathname] : [],
+  );
+
+  useEffect(() => {
+    if (KEEP_ALIVE_VIEWS.some((v) => v.path === location.pathname)) {
+      setVisited((prev) => (prev.includes(location.pathname) ? prev : [...prev, location.pathname]));
+    }
+  }, [location.pathname]);
+
+  return (
+    <>
+      {KEEP_ALIVE_VIEWS.filter((v) => visited.includes(v.path)).map((v) => (
+        <div key={v.path} style={{ display: location.pathname === v.path ? "block" : "none", height: "100%" }}>
+          {v.render()}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /* â”€â”€â”€ Shell (keyboard shortcuts + layout) â”€â”€â”€ */
 
 function AppShell() {
@@ -1631,56 +1569,13 @@ function AppShell() {
       />
       <TopBar collapsed={collapsed} />
       <main className="main-content">
+        <KeepAliveViews />
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route
-            path="/data-qc"
-            element={
-              <RealDataQcView />
-            }
-          />
-          <Route
-            path="/image-edit"
-            element={
-              <RealImageEditView />
-            }
-          />
-          <Route
-            path="/images-check"
-            element={
-              <RealImagesCheckView />
-            }
-          />
-          <Route
-            path="/packshot-browser"
-            element={
-              <RealPackshotBrowserView />
-            }
-          />
-          <Route
-            path="/ean-sorter"
-            element={
-              <ErrorBoundary fallbackLabel="EAN Sorter encountered an error">
-                <RealEanSorterView />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/ean-renamer"
-            element={
-              <ErrorBoundary fallbackLabel="EAN Renamer encountered an error">
-                <RealEanRenamerView />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/bulk-working"
-            element={
-              <ErrorBoundary fallbackLabel="Bulk Working encountered an error">
-                <RealBulkWorkingView />
-              </ErrorBoundary>
-            }
-          />
+          <Route path="/data-qc" element={null} />
+          <Route path="/images-check" element={null} />
+          <Route path="/ean-renamer" element={null} />
+          <Route path="/bulk-working" element={null} />
           <Route path="/guide" element={<GuideView />} />
           <Route path="/credits" element={<CreditsView />} />
           <Route path="*" element={<CommandHome />} />
