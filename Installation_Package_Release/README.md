@@ -1,44 +1,85 @@
-# GRIMOIRE Release Packaging
+# GRIMOIRE Full Offline Release Packaging
 
-This folder contains the local packaging tooling for GRIMOIRE installer releases.
+This folder contains the packaging tools for GRIMOIRE full offline installer releases.
 
-## Prerequisites
+## Build-machine prerequisites
 
-- [Inno Setup 6](https://jrsoftware.org/isinfo.php) (ISCC.exe must be on PATH or in default install location)
-- [GitHub CLI](https://cli.github.com/) (`gh`) for uploading releases
-- .NET SDK, Node.js, Python 3.11 (for the build steps)
+- Inno Setup 6
+- .NET 10 SDK
+- Node.js and npm
+- Python 3.11
+- GitHub CLI for uploading releases
+- Internet access while building, so pinned packages and model assets can be downloaded
 
-## Build Installer
+The generated installer does not require Python, Node.js, the .NET SDK, model
+downloads, or a preinstalled WebView2 Runtime on the user machine.
+
+## Build installer
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Build-Installer.ps1
+powershell -ExecutionPolicy Bypass `
+  -File .\Build-Installer.ps1 `
+  -Version "2.0.1" `
+  -CleanBuild
 ```
 
 Options:
-- `-Version "1.2.0"` — override version (default: read from .csproj)
-- `-SkipNodeRestore` — skip `npm ci`
-- `-SkipBackendRuntime` — skip Python/Node bundling
-- `-CleanBuild` — wipe `build/` before starting
 
-Output is written to:
+- `-Version "2.0.1"`: override the version read from the desktop project.
+- `-SkipNodeRestore`: skip frontend `npm ci`.
+- `-SkipBackendRuntime`: reuse an existing bundled runtime for packaging development only.
+- `-CleanBuild`: delete the previous `build/` directory first.
+
+The build process:
+
+1. Builds the frontend and self-contained .NET desktop shell.
+2. Creates a clean Python 3.11 runtime and installs pinned runtime packages.
+3. Downloads and bundles the CLIP model for offline use.
+4. Bundles the full x64 WebView2 Evergreen installer.
+5. Runs offline package verification.
+6. Compiles the Inno Setup installer.
+
+Output:
 
 ```text
 Installation_Package_Release\Releases\Grimoire-<version>-Setup.exe
 ```
 
-## Upload Release
+## Clean installation behavior
 
-Set a GitHub token with permission to create releases, then run:
+The installer stops an older GRIMOIRE process and replaces application files
+from a clean directory to prevent version conflicts. User data under
+`%LOCALAPPDATA%\Grimoire` is preserved unless the user explicitly selects the
+reset-user-data option.
+
+## Upload release
 
 ```powershell
 $env:GITHUB_TOKEN = "..."
-powershell -ExecutionPolicy Bypass -File .\Upload-GitHubRelease.ps1 -Version 1.0.0
+powershell -ExecutionPolicy Bypass `
+  -File .\Upload-GitHubRelease.ps1 `
+  -Version 2.0.1
 ```
 
-The generated installer is uploaded to:
+Release assets are uploaded to:
 
 ```text
 https://github.com/Shishiba389/Grimoire_Release
 ```
 
-Keep source code in the private development repository. Only upload generated installer assets from `Releases`.
+Keep source code in the private development repository. Upload only generated
+release assets from `Releases`.
+
+## Manual patch for an existing user
+
+Ship both `Grimoire-<version>-patch.zip` and `APPLY_PATCH.ps1`. The user saves
+both files locally, closes GRIMOIRE, then runs:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\APPLY_PATCH.ps1 `
+  -PatchZip .\Grimoire-2.1.0-patch.zip `
+  -InstallDir "C:\Program Files\GRIMOIRE"
+```
+
+The patch script validates its deletion manifest, removes retired files, copies
+the new files, and restarts GRIMOIRE.

@@ -90,9 +90,16 @@ foreach ($rel in $manifest.Keys) {
     }
 }
 
-Write-Host "      Changed/new files: $($changedFiles.Count) of $($manifest.Count)"
+$deletedFiles = @(
+    $prevFiles.Keys |
+        Where-Object { -not $manifest.ContainsKey($_) } |
+        Sort-Object
+)
 
-if ($changedFiles.Count -eq 0) {
+Write-Host "      Changed/new files: $($changedFiles.Count) of $($manifest.Count)"
+Write-Host "      Retired files: $($deletedFiles.Count)"
+
+if ($changedFiles.Count -eq 0 -and $deletedFiles.Count -eq 0) {
     Write-Host "      No changes detected. Skipping patch generation."
     exit 0
 }
@@ -111,6 +118,11 @@ foreach ($rel in $changedFiles) {
     New-Item -ItemType Directory -Force -Path $dstDir | Out-Null
     Copy-Item -LiteralPath $src -Destination $dst -Force
 }
+
+# The updater consumes this list after copying the new files. It is required
+# for feature retirements, because a ZIP patch alone cannot remove old files.
+$deleteManifest = Join-Path $patchDir ".grimoire-delete.txt"
+$deletedFiles | Set-Content -LiteralPath $deleteManifest -Encoding UTF8
 
 $patchZip = Join-Path $ReleasesDir "Grimoire-$Version-patch.zip"
 if (Test-Path $patchZip) {
