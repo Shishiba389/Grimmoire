@@ -9,7 +9,7 @@
 ; ============================================================================
 
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.0"
+  #define MyAppVersion "2.1.1"
 #endif
 #ifndef MyAppDir
   #define MyAppDir "..\build\app"
@@ -27,7 +27,7 @@
 #define MyAppName "GRIMOIRE"
 #define MyAppPublisher "MDX Team"
 #define MyAppExeName "Grimoire.exe"
-#define MyAppURL "https://github.com/Shishiba389/Grimoire_Release"
+#define MyAppURL "https://github.com/Shishiba389/Grimmoire"
 
 [Setup]
 AppId={{7B3C9F1A-5D2E-4A8B-B6C1-3E9F0A2D4B5C}

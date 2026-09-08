@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { columnCategoryKey, outputLabelForColumn, validateEan13 } from "./types";
+import { columnCategoryKey, copyOutputPreflightError, outputLabelForColumn, validateEan13 } from "./types";
 
 describe("EAN Renamer output mapping", () => {
   it("keeps standard category keys compatible with the backend", () => {
@@ -15,5 +15,18 @@ describe("EAN Renamer output mapping", () => {
   it("validates an EAN-13 check digit", () => {
     expect(validateEan13("8809893510410")).toBe(true);
     expect(validateEan13("8809893510411")).toBe(false);
+  });
+
+  it("requires separate copy outputs for populated categories", () => {
+    const assignments = [{ category: "packshot" }, { category: "artwork" }];
+    expect(copyOutputPreflightError("copy", assignments, { packshot: "D:/Out/Packshot" })).toContain("Missing: artwork");
+    expect(copyOutputPreflightError("copy", assignments, {
+      packshot: "D:/Out/Shared",
+      artwork: "d:/out/shared/",
+    })).toContain("different output folder");
+    expect(copyOutputPreflightError("copy", assignments, {
+      packshot: "D:/Out/Packshot",
+      artwork: "D:/Out/Artwork",
+    })).toBeNull();
   });
 });

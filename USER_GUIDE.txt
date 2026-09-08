@@ -45,8 +45,11 @@ BULK WORKING
 6. Select files, then use Move selected to or drag them into a category.
 7. Click Manage columns to add a custom category such as Detail shots. Custom
    columns are remembered on that workstation and appear in the output bar.
-8. Set output folders, click Preview, resolve conflicts, then Copy or Rename.
-9. Click Done or Next to continue through the queue.
+8. In Copy mode, set a different output folder for every populated category.
+   For example, do not use the Packshot folder for Artwork. Preview will block
+   missing or shared output folders before any files are copied.
+9. Resolve conflicts, then Copy or Rename.
+10. Click Done or Next to continue through the queue.
 
 EAN RENAMER
 -----------
@@ -54,8 +57,10 @@ EAN RENAMER
 1. Choose one source folder.
 2. Move files into the correct category columns.
 3. Enter or confirm EAN and product name when required.
-4. Choose Copy or Rename in-place, output folders, and naming mode.
-5. Review Preview before applying the operation.
+4. Choose Copy or Rename in-place, output folders, and naming mode. In Copy
+   mode, each populated category must use its own output folder.
+5. Review Preview before applying the operation; it blocks missing/shared
+   category output folders.
 
 DATA QC
 -------

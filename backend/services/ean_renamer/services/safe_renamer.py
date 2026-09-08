@@ -28,6 +28,15 @@ def apply_rename(request: RenameRequest) -> ApplyRenameResponse:
         raise HTTPException(status_code=400, detail="No images selected for rename")
 
     if request.outputFolderPath:
+        populated_categories = [
+            category for category in ("packshot", "lifestyle", "artwork")
+            if getattr(request.columns, category)
+        ]
+        if len(populated_categories) > 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Legacy rename copy supports one category only. Use the batch output flow with separate category folders.",
+            )
         output_folder = normalize_output_folder(request.outputFolderPath, folder)
         apply_copy(folder, output_folder, plan.items)
         log_path = write_log(folder, plan.items, mode="copy", output_folder=output_folder)

@@ -398,7 +398,7 @@ type FileSearchResult = {
   height: number;
 };
 
-const APP_VERSION = "2.1.0";
+const APP_VERSION = "2.1.1";
 
 const COMMANDS: CommandItem[] = [
   { to: "/", title: "Dashboard", desc: "Overview, releases, quick actions", keywords: ["home", "dashboard", "main", "release"] },

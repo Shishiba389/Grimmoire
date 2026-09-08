@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass `
 Release assets are uploaded to:
 
 ```text
-https://github.com/Shishiba389/Grimoire_Release
+https://github.com/Shishiba389/Grimmoire
 ```
 
 Keep source code in the private development repository. Upload only generated
@@ -77,7 +77,7 @@ both files locally, closes GRIMOIRE, then runs:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\APPLY_PATCH.ps1 `
-  -PatchZip .\Grimoire-2.1.0-patch.zip `
+  -PatchZip .\Grimoire-2.1.1-patch.zip `
   -InstallDir "C:\Program Files\GRIMOIRE"
 ```
 

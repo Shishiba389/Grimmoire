@@ -130,11 +130,7 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
         if output_mode == OUTPUT_MODE_RENAME:
             conflicts = find_in_place_conflicts(root, items)
 
-        return BatchRenamePlanResponse(
-            items=items,
-            skippedCount=len(images_by_id) - len(selected_ids),
-            conflicts=conflicts,
-        )
+        return batch_plan_response(items, len(images_by_id) - len(selected_ids), conflicts, output_roots, output_mode)
 
     if naming_mode in {NAMING_MODE_CONTINUOUS, NAMING_MODE_PREFIXED}:
         grouped_by_ean: dict[tuple[str, str | None], dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
@@ -233,11 +229,7 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
         if output_mode == OUTPUT_MODE_RENAME:
             conflicts = find_in_place_conflicts(root, items)
 
-        return BatchRenamePlanResponse(
-            items=items,
-            skippedCount=len(images_by_id) - len(selected_ids),
-            conflicts=conflicts,
-        )
+        return batch_plan_response(items, len(images_by_id) - len(selected_ids), conflicts, output_roots, output_mode)
 
     grouped: dict[tuple[str, str], list[str]] = defaultdict(list)
     for ean, category, image_id, _category_name, _item_product_name in selected:
@@ -278,11 +270,7 @@ def build_batch_plan(request: BatchRenameRequest) -> BatchRenamePlanResponse:
     if output_mode == OUTPUT_MODE_RENAME:
         conflicts = find_in_place_conflicts(root, items)
 
-    return BatchRenamePlanResponse(
-        items=items,
-        skippedCount=len(images_by_id) - len(selected_ids),
-        conflicts=conflicts,
-    )
+    return batch_plan_response(items, len(images_by_id) - len(selected_ids), conflicts, output_roots, output_mode)
 
 
 def apply_batch_copy(request: BatchRenameRequest) -> BatchApplyRenameResponse:
@@ -396,29 +384,54 @@ def apply_batch_rename_in_place(request: BatchRenameRequest) -> BatchApplyRename
 
 
 def output_roots_for_request(request: BatchRenameRequest, source_root: Path, required_categories: set[str]) -> dict[str, Path]:
+    """Resolve one explicit, distinct output root for each populated category.
+
+    A former fallback copied every unconfigured category into the first selected
+    output root. Packshot and Artwork both use an EAN child folder, so that
+    behaviour could silently mix files or make two files race for one target.
+    """
     roots: dict[str, Path] = {}
-    fallback = request.outputFolderPath or first_output_folder_path(request)
+    requested_paths = {category: path.strip() for category, path in request.outputFolderPaths.items() if path and path.strip()}
     missing: list[str] = []
-    for category in required_categories:
-        raw_path = request.outputFolderPaths.get(category) or fallback
-        if not raw_path:
-            missing.append(category)
-            continue
-        roots[category] = normalize_output_folder(raw_path, source_root)
+
+    if request.outputFolderPath and requested_paths:
+        raise HTTPException(status_code=400, detail="Use either a single legacy output folder or per-category output folders, not both.")
+
+    if request.outputFolderPath:
+        if len(required_categories) > 1:
+            listed = ", ".join(sorted(required_categories))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Set a separate output folder for each populated category: {listed}.",
+            )
+        for category in required_categories:
+            roots[category] = normalize_output_folder(request.outputFolderPath, source_root)
+    else:
+        for category in required_categories:
+            raw_path = requested_paths.get(category)
+            if not raw_path:
+                missing.append(category)
+                continue
+            roots[category] = normalize_output_folder(raw_path, source_root)
+
     if missing:
-        listed = ", ".join(missing)
+        listed = ", ".join(sorted(missing))
         raise HTTPException(
             status_code=400,
-            detail=f"Set an output folder before applying. Missing: {listed}",
+            detail=f"Set an output folder for every populated category. Missing: {listed}",
+        )
+
+    categories_by_root: dict[str, list[str]] = defaultdict(list)
+    for category, root in roots.items():
+        categories_by_root[str(root).casefold()].append(category)
+    duplicates = [sorted(categories) for categories in categories_by_root.values() if len(categories) > 1]
+    if duplicates:
+        listed = "; ".join(", ".join(categories) for categories in duplicates)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Each populated category needs a different output folder. Shared: {listed}",
         )
     return roots
-
-
-def first_output_folder_path(request: BatchRenameRequest) -> str | None:
-    for value in request.outputFolderPaths.values():
-        if value:
-            return value
-    return None
 
 
 def report_output_root(output_roots: dict[str, Path]) -> Path:
@@ -656,6 +669,37 @@ def add_plan_item(
             outputRelativePath=output_relative_path,
         )
     )
+
+
+def batch_plan_response(
+    items: list[RenamePlanItem],
+    skipped_count: int,
+    conflicts: list[str],
+    output_roots: dict[str, Path],
+    output_mode: str,
+) -> BatchRenamePlanResponse:
+    if output_mode == OUTPUT_MODE_COPY:
+        conflicts.extend(find_copy_target_collisions(items, output_roots))
+    return BatchRenamePlanResponse(items=items, skippedCount=skipped_count, conflicts=list(dict.fromkeys(conflicts)))
+
+
+def find_copy_target_collisions(items: list[RenamePlanItem], output_roots: dict[str, Path]) -> list[str]:
+    """Return plan-level collisions before concurrent copying begins."""
+    seen: dict[str, RenamePlanItem] = {}
+    conflicts: list[str] = []
+    for item in items:
+        if not item.outputRelativePath or item.category not in output_roots:
+            continue
+        target = output_roots[item.category] / Path(item.outputRelativePath)
+        key = str(target).casefold()
+        previous = seen.get(key)
+        if previous is not None:
+            conflicts.append(
+                f"{item.outputRelativePath} collides with {previous.oldName} and {item.oldName}; choose different categories or names."
+            )
+            continue
+        seen[key] = item
+    return conflicts
 
 
 def find_in_place_conflicts(root: Path, items: list[RenamePlanItem]) -> list[str]:

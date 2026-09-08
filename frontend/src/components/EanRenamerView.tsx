@@ -18,7 +18,7 @@ import {
   CLIP_CATEGORY_TO_COLUMN, COLUMN_TO_CLIP_CATEGORY,
   DEFAULT_COLUMNS, EMPTY_DUPLICATE_BUCKETS,
   DEFAULT_DUPLICATE_LABELS, validateEan13,
-  columnCategoryKey, outputLabelForColumn,
+  columnCategoryKey, copyOutputPreflightError, outputLabelForColumn,
 } from "./ean-renamer/types";
 
 function duplicateLabelForColumn(col: KanbanColumn, labels: DuplicateLabels): string {
@@ -826,7 +826,7 @@ export function EanRenamerView() {
     });
 
     Object.entries(outputFolders).forEach(([category, path]) => {
-      outputFolderPaths[category] = path;
+      if (path) outputFolderPaths[columnCategoryKey(category)] = path;
     });
 
     return {
@@ -847,13 +847,19 @@ export function EanRenamerView() {
 
   async function handlePreview() {
     if (!folderPath) return;
+    const body = buildBody();
+    const outputError = copyOutputPreflightError(body.outputMode, body.assignments, body.outputFolderPaths);
+    if (outputError) {
+      notify("Output folders required", { type: "warning", message: outputError });
+      return;
+    }
     setBusy(true);
     void commitCorrections();
     try {
       const result = await apiJson<RenameResult>("/api/ean-renamer/batch/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify(body),
       });
       setRenamePlan(result.items);
       setShowPreviewModal(true);
@@ -866,13 +872,19 @@ export function EanRenamerView() {
 
   async function handleApply() {
     if (!folderPath) return;
+    const body = buildBody();
+    const outputError = copyOutputPreflightError(body.outputMode, body.assignments, body.outputFolderPaths);
+    if (outputError) {
+      notify("Output folders required", { type: "warning", message: outputError });
+      return;
+    }
     setBusy(true);
     void commitCorrections();
     try {
       const result = await apiJson<RenameResult>("/api/ean-renamer/batch/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify(body),
       });
       const roots = Object.values(outputFolders).filter(Boolean);
       if (settings.outputMode === "in-folder") roots.push(folderPath);

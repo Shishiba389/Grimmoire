@@ -77,7 +77,7 @@ $BackendTarget = Join-Path $AppDir "backend"
 New-Item -ItemType Directory -Force -Path $BackendTarget | Out-Null
 
 robocopy $BackendDir $BackendTarget /E `
-    /XD ".venv" "node_modules" "__pycache__" `
+    /XD ".venv" "node_modules" "__pycache__" ".pytest_cache" "tests" `
     /XD "storage\uploads" "storage\outputs" `
     /XF "*.pyc" "*.pyo" | Out-Null
 
