@@ -46,3 +46,16 @@
 
 Close GRIMOIRE before applying a patch. A full installer remains the recovery
 path if a workstation skipped several releases or has a damaged runtime.
+
+## Manual patch
+
+Download `Grimoire-2.1.1-patch.zip` and `APPLY_PATCH.ps1` into the same folder,
+then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\APPLY_PATCH.ps1 `
+  -PatchZip .\Grimoire-2.1.1-patch.zip `
+  -InstallDir "C:\Program Files\GRIMOIRE"
+```
+
+Patch SHA-256: `629919EAC1073565148D5B85418827C1C49B1929BCC3E023CFEEE9610161EF6F`
