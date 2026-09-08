@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $PackageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ReleasesDir = Join-Path $PackageRoot "Releases"
 $ReleaseNotes = Join-Path $PackageRoot "release-notes.md"
-$RepoUrl = "https://github.com/Shishiba389/Grimoire_Release"
+$RepoUrl = "https://github.com/Shishiba389/Grimmoire"
 $Token = $env:GITHUB_TOKEN
 
 if ([string]::IsNullOrWhiteSpace($Token)) {

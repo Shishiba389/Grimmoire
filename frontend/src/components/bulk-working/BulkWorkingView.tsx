@@ -13,7 +13,7 @@ import type {
 } from "../ean-renamer/types";
 import {
   DEFAULT_COLUMNS, EMPTY_DUPLICATE_BUCKETS,
-  thumbnailUrl, CLIP_CATEGORY_TO_COLUMN, columnCategoryKey,
+  thumbnailUrl, CLIP_CATEGORY_TO_COLUMN, columnCategoryKey, copyOutputPreflightError,
 } from "../ean-renamer/types";
 import { ImageCard, OutputBar, HoverPreview, PreviewPanel, ClipOverlay } from "../ean-renamer";
 import "../ean-renamer/shared.css";
@@ -572,12 +572,18 @@ export function BulkWorkingView() {
   /* ── Preview / Apply ── */
   async function handlePreview() {
     if (!folderPath) return;
+    const body = buildBody();
+    const outputError = copyOutputPreflightError(body.outputMode, body.assignments, body.outputFolderPaths);
+    if (outputError) {
+      notify("Output folders required", { type: "warning", message: outputError });
+      return;
+    }
     setBusy(true);
     try {
       const result = await apiJson<RenameResult>("/api/ean-renamer/batch/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify(body),
       });
       setRenamePlan(result.items);
     } catch (e) {
@@ -589,12 +595,18 @@ export function BulkWorkingView() {
 
   async function handleApply() {
     if (!folderPath) return;
+    const body = buildBody();
+    const outputError = copyOutputPreflightError(body.outputMode, body.assignments, body.outputFolderPaths);
+    if (outputError) {
+      notify("Output folders required", { type: "warning", message: outputError });
+      return;
+    }
     setBusy(true);
     try {
       const result = await apiJson<RenameResult>("/api/ean-renamer/batch/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBody()),
+        body: JSON.stringify(body),
       });
       setRenamePlan(result.items);
       const action = settings.outputMode === "copy" ? "Copy" : "Rename";

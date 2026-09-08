@@ -263,6 +263,34 @@ export function outputLabelForColumn(col: KanbanColumn): string {
   return col.title;
 }
 
+export function copyOutputPreflightError(
+  outputMode: string,
+  assignments: Array<{ category: string }>,
+  outputFolderPaths: Record<string, string>,
+): string | null {
+  if (outputMode !== "copy") return null;
+
+  const requiredCategories = [...new Set(assignments.map((assignment) => assignment.category))];
+  const missing = requiredCategories.filter((category) => !outputFolderPaths[category]?.trim());
+  if (missing.length) {
+    return `Set an output folder for every populated category. Missing: ${missing.join(", ")}.`;
+  }
+
+  const categoriesByPath = new Map<string, string[]>();
+  for (const category of requiredCategories) {
+    const normalizedPath = outputFolderPaths[category].trim().replace(/[\\/]+$/, "").toLocaleLowerCase();
+    const categories = categoriesByPath.get(normalizedPath) || [];
+    categories.push(category);
+    categoriesByPath.set(normalizedPath, categories);
+  }
+  const shared = [...categoriesByPath.values()].filter((categories) => categories.length > 1);
+  if (shared.length) {
+    return `Use a different output folder for each category. Shared: ${shared.map((categories) => categories.join(", ")).join("; ")}.`;
+  }
+
+  return null;
+}
+
 export function planOutput(item: RenamePlanItem): string {
   return item.outputPath || item.outputRelativePath || item.newName || "";
 }

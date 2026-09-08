@@ -31,6 +31,9 @@ foreach ($f in $allFiles) {
     $fullPath = $f.FullName
     if ($fullPath.Length -le $prefixLen) { continue }
     $rel = $fullPath.Substring($prefixLen).Replace("\", "/")
+    # Test code and test-run caches do not belong in the distributed desktop
+    # runtime. Excluding them here also removes artifacts from older packages.
+    if ($rel -match '^backend/(?:\.pytest_cache|tests)(?:/|$)') { continue }
     $hash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLower()
     $manifest[$rel] = @{ hash = $hash; size = $f.Length }
 }

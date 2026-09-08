@@ -19,7 +19,8 @@ responsive for large collections.
 2. Optionally load master data or import an existing mapping.
 3. Filter the queue by folder, EAN, product name, or status.
 4. Open a folder, review automatic results and PDFs, then classify files.
-5. Set per-category output folders.
+5. Set a distinct output folder for every populated category. A Packshot root
+   cannot be reused for Artwork or another category.
 6. Preview all output paths and conflicts.
 7. Copy or rename, then continue with Done or Next.
 
@@ -38,10 +39,13 @@ Use **Manage columns** to add a category such as `Detail shots`. The category
 appears immediately in the board and output bar. Its safe key is sent to the
 EAN Renamer backend as a custom category, so its files are written to the
 matching output folder. Custom columns are remembered in the local browser
-profile; per-folder output paths remain explicitly selected by the user.
+profile; per-folder output paths remain explicitly selected by the user. The
+copy workflow blocks missing or shared category roots before it creates files.
 
 ## Validation coverage
 
 `backend/tests/test_bulk_scanner.py` covers PDF retention in summary scans,
-full folder opening, and the Bulk Scan API response. Frontend helper tests cover
-standard and custom output-category mapping.
+full folder opening, and the Bulk Scan API response. `backend/tests/test_output_safety.py`
+covers missing/shared category roots, safe separated Packshot/Artwork output,
+and the legacy mixed-category guard. Frontend helper tests cover standard and
+custom output-category mapping plus output-root preflight validation.

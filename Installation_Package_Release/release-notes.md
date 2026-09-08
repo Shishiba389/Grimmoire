@@ -1,4 +1,16 @@
-# GRIMOIRE 2.1.0
+# GRIMOIRE 2.1.1
+
+## Output safety
+
+- Copy output now requires an explicit output folder for every populated
+  category. Artwork can no longer fall back into the Packshot destination.
+- Categories cannot share an output root, preventing mixed EAN folders.
+- The output plan detects duplicate destination files before copy starts.
+- The legacy single-folder API now refuses a mixed-category copy and directs
+  callers to the safe per-category batch workflow.
+- The desktop updater now checks the active Grimmoire GitHub Release feed.
+
+## Previous 2.1.0 changes
 
 ## Bulk Working
 

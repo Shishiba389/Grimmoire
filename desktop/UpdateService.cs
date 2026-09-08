@@ -12,7 +12,7 @@ namespace Grimoire.Desktop;
 
 public static class UpdateService
 {
-    private const string ReleaseApiUrl = "https://api.github.com/repos/Shishiba389/Grimoire_Release/releases/latest";
+    private const string ReleaseApiUrl = "https://api.github.com/repos/Shishiba389/Grimmoire/releases/latest";
     private static readonly SemaphoreSlim UpdateLock = new(1, 1);
 
     private static readonly HttpClient Http = new()
